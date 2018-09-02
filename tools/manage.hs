@@ -99,7 +99,8 @@ start opts api_env = do
 
     UploadMedia atk media_type file_path -> do
       file_body <- liftIO $ streamFile file_path
-      err_or_res <- flip runReaderT api_env $ oapiUploadMedia atk media_type file_body (Just file_path) Nothing
+      err_or_res <- flip runReaderT api_env $ flip runReaderT atk $
+                      oapiUploadMedia media_type file_body (Just file_path) Nothing
       case err_or_res of
         Left err -> do
           $logError $ "oapiUploadMedia failed: " <> tshow err
@@ -108,7 +109,8 @@ start opts api_env = do
           putStrLn $ "Types is: " <> fromString (simpleEncode media_type)
 
     DownloadMedia atk media_id -> do
-      err_or_res <- flip runReaderT api_env $ oapiDownloadMedia atk media_id
+      err_or_res <- flip runReaderT api_env $ flip runReaderT atk $
+                          oapiDownloadMedia media_id
       case err_or_res of
         Left err -> do
           $logError $ "oapiDownloadMedia failed: " <> tshow err
@@ -122,7 +124,8 @@ start opts api_env = do
 
 start' :: Options -> IO ()
 -- {{{1
-start' opts = WS.withSession $ \sess -> do
+start' opts = do
+  sess <- WS.newAPISession
   logger_set <- newStderrLoggerSet 0
   let api_env = sess
   runLoggingT

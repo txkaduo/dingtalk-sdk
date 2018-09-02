@@ -20,6 +20,7 @@ import           Yesod.Helpers.Parsec (derivePathPieceS)
 
 import DingTalk.Types
 import DingTalk.OAPI.Basic
+import DingTalk.Helpers
 -- }}}1
 
 
@@ -38,6 +39,9 @@ instance SimpleEncode MediaType where
   simpleEncode MediaTypeImage = "image"
   simpleEncode MediaTypeVoice = "voice"
   simpleEncode MediaTypeFile  = "file"
+
+instance ParamValue MediaType where
+  toParamValue = fromString . simpleEncode
 -- }}}1
 
 
@@ -57,24 +61,18 @@ instance FromJSON UploadMediaResp where
 
 
 oapiUploadMedia :: HttpCallMonad env m
-                => AccessToken
-                -> MediaType
+                => MediaType
                 -> RequestBody
                 -> Maybe FilePath
                 -> Maybe MimeType
-                -> m (Either OapiError UploadMediaResp)
+                -> ReaderT AccessToken m (Either OapiError UploadMediaResp)
 -- {{{1
-oapiUploadMedia atk media_type file_content m_file_path m_mime_type = do
-  sess <- asks getWreqSession
-  liftIO (WS.postWith opts sess url file_part)
-    >>= asJSON
-    >>= return . view responseBody
-    >>= oapiToPayload
+oapiUploadMedia media_type file_content m_file_path m_mime_type = do
+  oapiPostCallWithAtk "/media/upload"
+    [ "type" &= media_type
+    ]
+    file_part
   where
-    url = oapiUrlBase <> "/media/upload"
-    opts = defaults & param "access_token" .~ [ unAccessToken atk ]
-                    & param "type" .~ [ fromString (simpleEncode media_type) ]
-
     file_part = partFileRequestBody "media" "" file_content
                   & maybe id (\ fp -> partFileName .~ Just fp) m_file_path
                   & maybe id (\ mime_type -> partContentType .~ Just mime_type) m_mime_type
@@ -82,19 +80,22 @@ oapiUploadMedia atk media_type file_content m_file_path m_mime_type = do
 
 
 oapiDownloadMedia :: HttpCallMonad env m
-                  => AccessToken
-                  -> MediaID
-                  -> m (Either OapiError (Response LB.ByteString))
+                  => MediaID
+                  -> ReaderT AccessToken m (Either OapiError (Response LB.ByteString))
 -- {{{1
-oapiDownloadMedia atk media_id = do
-  sess <- asks getWreqSession
+oapiDownloadMedia media_id = do
+  sess <- lift $ asks getWreqSession
+  atk <- ask
+  let opts = defaults & applyParamKvListInQs [ "access_token" &= atk, "media_id" &= media_id ]
+
   resp <- liftIO $ WS.getWith opts sess url
   if "application/json" `isPrefixOf` (resp ^. responseHeader "Content-Type")
      then do
        v <- fmap (view responseBody) $ asJSON resp
        case A.fromJSON v of
          A.Error err -> do
-           $logError $ "cannot parse response body as error message: " <> fromString err
+           $logErrorS logSourceName $
+                      "cannot parse response body as error message: " <> fromString err
                       <> ", body is:\n" <>
                       toStrict (decodeUtf8 (resp ^. responseBody))
 
@@ -106,8 +107,7 @@ oapiDownloadMedia atk media_id = do
 
   where
     url = oapiUrlBase <> "/media/downloadFile"
-    opts = defaults & param "access_token" .~ [ unAccessToken atk ]
-                    & param "media_id" .~ [ unMediaID media_id ]
 -- }}}1
+
 
 -- vim: set foldmethod=marker:

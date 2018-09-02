@@ -7,9 +7,11 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader (asks)
 import           Data.Aeson           as A
 import           Network.Wreq
+import           Network.Wreq.Types   (Postable)
 import qualified Network.Wreq.Session as WS
 
 import DingTalk.Types
+import DingTalk.Helpers
 -- }}}1
 
 
@@ -54,7 +56,7 @@ oapiToPayload :: (MonadLogger m, MonadThrow m, FromJSON a)
 oapiToPayload v = do
   case fromJSON v of
     A.Error err -> do
-      $logError $ "Could not parse response body to payload: " <> fromString err
+      $logErrorS logSourceName $ "Could not parse response body to payload: " <> fromString err
       throwM $ DatagramError err
 
     A.Success (OapiErrorOrPayload x) -> return x
@@ -76,8 +78,9 @@ oapiGetAccessToken' :: HttpCallMonad env m
                     => CorpId
                     -> CorpSecret
                     -> m (Either OapiError AccessToken)
-oapiGetAccessToken' corp_id corp_secret = 
+oapiGetAccessToken' corp_id corp_secret =
   fmap (fmap accessTokenRespAccessToken) $ oapiGetAccessToken corp_id corp_secret
+
 
 oapiGetAccessToken :: HttpCallMonad env m
                    => CorpId
@@ -85,15 +88,10 @@ oapiGetAccessToken :: HttpCallMonad env m
                    -> m (Either OapiError AccessTokenResp)
 -- {{{1
 oapiGetAccessToken corp_id corp_secret = do
-  sess <- asks getWreqSession
-  liftIO (WS.getWith opts sess url)
-    >>= asJSON
-    >>= return . view responseBody
-    >>= oapiToPayload
-  where
-    url = oapiUrlBase <> "/gettoken"
-    opts = defaults & param "corpid" .~ [ unCorpId corp_id ]
-                    & param "corpsecret" .~ [ unCorpSecret corp_secret ]
+  oapiGetCall "/gettoken"
+    [ "corpid" &= corp_id
+    , "corpsecret" &= corp_secret
+    ]
 -- }}}1
 
 
@@ -111,19 +109,12 @@ instance FromJSON JsapiTicketResp where
 
 
 oapiGetJsapiTicket :: HttpCallMonad env m
-                   => AccessToken
-                   -> m (Either OapiError JsapiTicketResp)
+                   => ReaderT AccessToken m (Either OapiError JsapiTicketResp)
 -- {{{1
-oapiGetJsapiTicket atk = do
-  sess <- asks getWreqSession
-  liftIO (WS.getWith opts sess url)
-    >>= asJSON
-    >>= return . view responseBody
-    >>= oapiToPayload
-  where
-    url = oapiUrlBase <> "/get_jsapi_ticket"
-    opts = defaults & param "access_token" .~ [ unAccessToken atk ]
-                    & param "type" .~ [ asText "jsapi" ]
+oapiGetJsapiTicket = do
+  oapiGetCallWithAtk "/get_jsapi_ticket"
+    [ "type" &= asText "jsapi"
+    ]
 -- }}}1
 
 
@@ -144,21 +135,75 @@ instance FromJSON UserInfoByCodeResp where
 
 
 oapiGetUserInfoByAuthCode :: HttpCallMonad env m
-                          => AccessToken
-                          -> Text
-                          -> m (Either OapiError UserInfoByCodeResp)
+                          => Text
+                          -> ReaderT AccessToken m (Either OapiError UserInfoByCodeResp)
 -- {{{1
-oapiGetUserInfoByAuthCode atk auth_code = do
+oapiGetUserInfoByAuthCode auth_code = do
+  oapiGetCallWithAtk "/user/getuserinfo"
+    [ "code" &= auth_code
+    ]
+-- }}}1
+
+
+oapiGetCall :: (HttpCallMonad env m, FromJSON a)
+            => String
+            -> ParamKvList
+            -> m (Either OapiError a)
+-- {{{1
+oapiGetCall url_path kv_list = do
   sess <- asks getWreqSession
   liftIO (WS.getWith opts sess url)
     >>= asJSON
     >>= return . view responseBody
     >>= oapiToPayload
   where
-    url = oapiUrlBase <> "/user/getuserinfo"
-    opts = defaults & param "access_token" .~ [ unAccessToken atk ]
-                    & param "code" .~ [ auth_code ]
+    url = oapiUrlBase <> url_path
+    opts = defaults & applyParamKvListInQs kv_list
 -- }}}1
+
+
+oapiGetCallWithAtk :: (HttpCallMonad env m, FromJSON a)
+                   => String
+                   -> ParamKvList
+                   -> ReaderT AccessToken m (Either OapiError a)
+-- {{{1
+oapiGetCallWithAtk url_path kv_list = do
+  atk <- ask
+  let kv_list' = ("access_token" &= atk) : kv_list
+  lift $ oapiGetCall url_path kv_list'
+-- }}}1
+
+
+oapiPostCall :: (HttpCallMonad env m, FromJSON a, Postable b)
+             => String
+             -> ParamKvList
+             -> b
+             -> m (Either OapiError a)
+-- {{{1
+oapiPostCall url_path kv_list post_data = do
+  sess <- asks getWreqSession
+  liftIO (WS.postWith opts sess url post_data)
+    >>= asJSON
+    >>= return . view responseBody
+    >>= oapiToPayload
+  where
+    url = oapiUrlBase <> url_path
+    opts = defaults & applyParamKvListInQs kv_list
+-- }}}1
+
+
+oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
+                    => String
+                    -> ParamKvList
+                    -> b
+                    -> ReaderT AccessToken m (Either OapiError a)
+-- {{{1
+oapiPostCallWithAtk url_path kv_list post_data = do
+  atk <- ask
+  let kv_list' = ("access_token" &= atk) : kv_list
+  lift $ oapiPostCall url_path kv_list' post_data
+-- }}}1
+
 
 
 -- vim: set foldmethod=marker:

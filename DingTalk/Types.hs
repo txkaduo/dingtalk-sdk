@@ -11,10 +11,26 @@ import           Text.Blaze.Html       (ToMarkup (..))
 import           Text.Shakespeare.I18N (ToMessage (..))
 -- }}}1
 
+
+class ParamValue a where
+  toParamValue :: a -> Text
+
+instance ParamValue Text where
+  toParamValue = id
+
+
+data SomeParamValue = forall a. ParamValue a => SomeParamValue a
+
+instance ParamValue SomeParamValue where
+  toParamValue (SomeParamValue v) = toParamValue v
+
+
+
 #define NEWTYPE_TEXT_DERIVING \
   deriving (Show, Eq, Ord, Typeable, ToMessage, ToMarkup \
            , PersistField, PersistFieldSql \
            , ToJSON, FromJSON \
+           , ParamValue \
            )
 
 newtype CorpId = CorpId { unCorpId :: Text }
@@ -71,5 +87,8 @@ type HttpCallMonad r m = (MonadIO m, MonadLogger m, MonadThrow m
                          , MonadReader r m
                          , HasWreqSession r
                          )
+
+logSourceName :: Text
+logSourceName = "dingtalk-sdk"
 
 -- vim: set foldmethod=marker:
