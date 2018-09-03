@@ -12,6 +12,7 @@ import           Options.Applicative
 import           System.IO             (hPutStrLn)
 import           System.Log.FastLogger (LoggerSet, newStderrLoggerSet,
                                         pushLogStr)
+import           System.Exit
 
 import           Text.Parsec.TX.Utils  (SimpleStringRep,
                                         parseMaybeSimpleEncoded, simpleEncode)
@@ -19,14 +20,16 @@ import           Text.Parsec.TX.Utils  (SimpleStringRep,
 import DingTalk
 -- }}}1
 
-data ManageCmd = UpdateAccessToken CorpId CorpSecret
-               | UploadMedia AccessToken MediaType FilePath
-               | DownloadMedia AccessToken MediaID
+data ManageCmd = Scopes
+               | UploadMedia MediaType FilePath
+               | DownloadMedia MediaID
                deriving (Show)
 
 data Options = Options
-  { optVerbose :: Int
-  , optCommand :: ManageCmd
+  { optVerbose    :: Int
+  , optCorpId     :: CorpId
+  , optCorpSecret :: CorpSecret
+  , optCommand    :: ManageCmd
   }
 
 optionsParse :: Parser Options
@@ -36,6 +39,8 @@ optionsParse = Options
                         $ long "verbose" <> short 'v' <> value 1
                         <> metavar "LEVEL"
                         <> help "Verbose Level (0 - 3)")
+                <*> fmap (CorpId . fromString) (strOption (long "corp-id" <> short 'i' <> metavar "CORP_ID"))
+                <*> fmap (CorpSecret . fromString) (strOption (long "corp-secret" <> short 's' <> metavar "CORP_SECRET"))
                 <*> manageCmdParser
 -- }}}1
 
@@ -43,18 +48,13 @@ optionsParse = Options
 manageCmdParser :: Parser ManageCmd
 -- {{{1
 manageCmdParser = subparser $
-  command "get-access-token"
-    (info (helper <*> ( UpdateAccessToken
-                          <$> (CorpId . fromString <$> argument str (metavar "CORP_ID"))
-                          <*> (CorpSecret . fromString <$> argument str (metavar "CORP_SECRET"))
-                      )
-          )
-          (progDesc "获取 AccessToken")
+  command "scopes"
+    (info (helper <*> pure Scopes)
+          (progDesc "获取 AccessToken 并看权限范围")
     )
   <> command "upload-media"
     (info (helper <*> ( UploadMedia
-                          <$> (AccessToken . fromString <$> argument str (metavar "ACCESS_TOKEN"))
-                          <*> (argument (simpleEncodedStringReader "media type") (metavar "MEDIA_TYPE"))
+                          <$> (argument (simpleEncodedStringReader "media type") (metavar "MEDIA_TYPE"))
                           <*> (argument str (metavar "FILE"))
                       )
           )
@@ -62,8 +62,7 @@ manageCmdParser = subparser $
     )
   <> command "download-media"
     (info (helper <*> ( DownloadMedia
-                          <$> (AccessToken . fromString <$> argument str (metavar "ACCESS_TOKEN"))
-                          <*> (MediaID . fromString <$> argument str (metavar "MEDIA_ID"))
+                          <$> (MediaID . fromString <$> argument str (metavar "MEDIA_ID"))
                       )
           )
           (progDesc "下载media_id对应的文件, 内容直接从 stdout 输出")
@@ -87,19 +86,27 @@ start :: (MonadLogger m, MonadCatch m, MonadIO m)
       -> WS.Session
       -> m ()
 -- {{{1
-start opts api_env = do
-  case optCommand opts of
-    UpdateAccessToken corp_id corp_secret -> do
-      err_or_atk <- flip runReaderT api_env (oapiGetAccessToken' corp_id corp_secret)
-      case err_or_atk of
-        Left err -> do
-          $logError $ "oapiGetAccessToken failed: " <> tshow err
-        Right atk -> do
-          putStrLn $ "AccessToken is: " <> unAccessToken atk
+start opts api_env = flip runReaderT api_env $ do
+  err_or_atk <- oapiGetAccessToken' corp_id corp_secret
+  atk <- case err_or_atk of
+    Right atk -> return atk
+    Left err -> do
+      $logError $ "oapiGetAccessToken failed: " <> tshow err
+      liftIO exitFailure
 
-    UploadMedia atk media_type file_path -> do
+  case optCommand opts of
+    Scopes -> do
+      err_or_res <- flip runReaderT atk $ oapiGetAuthTokenScopes
+      case err_or_res of
+        Left err -> do
+          $logError $ "  failed: " <> tshow err
+        Right resp -> do
+          putStrLn $ "AccessToken is: " <> unAccessToken atk
+          putStrLn $ tshow resp
+
+    UploadMedia media_type file_path -> do
       file_body <- liftIO $ streamFile file_path
-      err_or_res <- flip runReaderT api_env $ flip runReaderT atk $
+      err_or_res <- flip runReaderT atk $
                       oapiUploadMedia media_type file_body (Just file_path) Nothing
       case err_or_res of
         Left err -> do
@@ -108,9 +115,8 @@ start opts api_env = do
           putStrLn $ "MediaID is: " <> unMediaID media_id
           putStrLn $ "Types is: " <> fromString (simpleEncode media_type)
 
-    DownloadMedia atk media_id -> do
-      err_or_res <- flip runReaderT api_env $ flip runReaderT atk $
-                          oapiDownloadMedia media_id
+    DownloadMedia media_id -> do
+      err_or_res <- flip runReaderT atk $ oapiDownloadMedia media_id
       case err_or_res of
         Left err -> do
           $logError $ "oapiDownloadMedia failed: " <> tshow err
@@ -119,6 +125,9 @@ start opts api_env = do
           liftIO $ hPutStrLn stderr $ "Content-Type: " <> unpack (decodeUtf8 (resp ^. responseHeader "Content-Type"))
           liftIO $ LB.putStr $ resp ^. responseBody
 
+  where
+    corp_id = optCorpId opts
+    corp_secret = optCorpSecret opts
 -- }}}1
 
 

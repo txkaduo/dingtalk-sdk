@@ -145,6 +145,36 @@ oapiGetUserInfoByAuthCode auth_code = do
 -- }}}1
 
 
+data AuthOrgScopes = AuthOrgScopes
+                      [ DeptID ]
+                      [ UserID ]
+                    deriving (Show)
+
+instance FromJSON AuthOrgScopes where
+  parseJSON = withObject "AuthOrgScopes" $ \ o ->
+    AuthOrgScopes <$> o .: "authed_dept"
+                  <*> o .: "authed_user"
+
+
+data AuthTokenScopeResp = AuthTokenScopeResp
+                            [Text]
+                            [Text]
+                            AuthOrgScopes
+                          deriving (Show)
+
+instance FromJSON AuthTokenScopeResp where
+  parseJSON = withObject "AuthTokenScopeResp" $ \ o ->
+    AuthTokenScopeResp <$> o .: "auth_user_field"
+                       <*> o .: "condition_field"
+                       <*> o .: "auth_org_scopes"
+
+
+oapiGetAuthTokenScopes :: HttpCallMonad env m
+                       => ReaderT AccessToken m (Either OapiError AuthTokenScopeResp)
+oapiGetAuthTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
+
+
+
 oapiGetCall :: (HttpCallMonad env m, FromJSON a)
             => String
             -> ParamKvList
