@@ -18,6 +18,11 @@ class ParamValue a where
 instance ParamValue Text where
   toParamValue = id
 
+instance ParamValue Bool where
+  toParamValue = bool "false" "true"
+
+instance ParamValue Int where toParamValue = tshow
+
 
 data SomeParamValue = forall a. ParamValue a => SomeParamValue a
 
@@ -56,6 +61,13 @@ newtype DeptID = DeptID { unDeptID :: Int64 }
            , PersistField, PersistFieldSql \
            , ToJSON, FromJSON \
            )
+
+rootDeptID :: DeptID
+rootDeptID = DeptID 1
+
+instance ParamValue DeptID where
+  toParamValue = tshow . unDeptID
+
 
 newtype DeviceID = DeviceID { unDeviceID :: Text }
   NEWTYPE_TEXT_DERIVING

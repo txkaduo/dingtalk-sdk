@@ -96,7 +96,7 @@ start opts api_env = flip runReaderT api_env $ do
 
   case optCommand opts of
     Scopes -> do
-      err_or_res <- flip runReaderT atk $ oapiGetAuthTokenScopes
+      err_or_res <- flip runReaderT atk $ oapiGetAccessTokenScopes
       case err_or_res of
         Left err -> do
           $logError $ "  failed: " <> tshow err

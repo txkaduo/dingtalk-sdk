@@ -24,6 +24,7 @@ library
   exposed-modules:     DingTalk.Types
                        DingTalk.Helpers
                        DingTalk.OAPI.Basic
+                       DingTalk.OAPI.Contacts
                        DingTalk.OAPI.Crypto
                        DingTalk.OAPI.Media
                        DingTalk.ECO.Basic
@@ -35,6 +36,7 @@ library
                      , classy-prelude
                      , text
                      , aeson
+                     , aeson-extra
                      , shakespeare
                      , blaze-html
                      , persistent
@@ -43,9 +45,11 @@ library
                      , transformers
                      , mtl
                      , lens
+                     , lens-aeson
                      , bytestring
                      , base64-bytestring
                      , base16-bytestring
+                     , conduit
                      , random
                      , cryptohash
                      , HTTP
@@ -77,6 +81,8 @@ library
                       RankNTypes
                       FunctionalDependencies
                       PartialTypeSignatures
+                      DataKinds
+                      TupleSections
 
   ghc-options:  -Wall -fwarn-tabs -fno-warn-partial-type-signatures -j
 

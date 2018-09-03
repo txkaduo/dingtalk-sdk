@@ -1,4 +1,14 @@
-module DingTalk.OAPI.Basic where
+module DingTalk.OAPI.Basic
+  ( OapiError(..), OapiErrorOrPayload(..)
+  , AccessTokenResp(..)
+  , oapiGetAccessToken, oapiGetAccessToken'
+  , JsapiTicketResp(..), oapiGetJsapiTicket
+  , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
+  , AuthOrgScopes(..), AuthTokenScopeResp(..), oapiGetAccessTokenScopes
+  , oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
+  , oapiUrlBase
+  , module DingTalk.Types
+  ) where
 
 -- {{{1 imports
 import           ClassyPrelude
@@ -171,9 +181,9 @@ instance FromJSON AuthTokenScopeResp where
                        <*> o .: "auth_org_scopes"
 
 
-oapiGetAuthTokenScopes :: HttpCallMonad env m
-                       => ReaderT AccessToken m (Either OapiError AuthTokenScopeResp)
-oapiGetAuthTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
+oapiGetAccessTokenScopes :: HttpCallMonad env m
+                         => ReaderT AccessToken m (Either OapiError AuthTokenScopeResp)
+oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
 
 
