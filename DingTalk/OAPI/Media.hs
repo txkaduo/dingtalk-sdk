@@ -47,7 +47,7 @@ instance ParamValue MediaType where
 
 data UploadMediaResp =
   UploadMediaResp
-    MediaID
+    MediaId
     MediaType
     POSIXTime
 
@@ -80,7 +80,7 @@ oapiUploadMedia media_type file_content m_file_path m_mime_type = do
 
 
 oapiDownloadMedia :: HttpCallMonad env m
-                  => MediaID
+                  => MediaId
                   -> ReaderT AccessToken m (Either OapiError (Response LB.ByteString))
 -- {{{1
 oapiDownloadMedia media_id = do

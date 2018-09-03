@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module DingTalk.Helpers where
 
 -- {{{1 imports
@@ -7,7 +8,9 @@ import           Control.Monad.Logger
 import           Data.Aeson.Lens      (key)
 import qualified Data.Aeson           as A
 import qualified Data.Aeson.Text      as A
-import           Network.Wreq
+import qualified Data.Aeson.Types     as A
+import qualified Data.Text            as T
+import           Network.Wreq hiding (Proxy)
 
 import DingTalk.Types
 -- }}}1
@@ -34,13 +37,28 @@ getJsonField :: (MonadIO m, A.FromJSON a, MonadLogger m)
              => A.Value
              -> Text
              -> m a
+-- {{{1
 getJsonField jv field = do
-  case jv ^? key field of
+  mx <- getJsonFieldMay jv field
+  case mx of
+    Just x -> return x
     Nothing -> do
       $logErrorS logSourceName $ "field '" <> field <> "' does not exist in JSON: " <> jv_txt
       liftIO $ throwM $ DatagramError $ unpack $ "field '" <> field <> "' does not exist in JSON"
+  where jv_txt = toStrict (A.encodeToLazyText jv)
+-- }}}1
 
-    Just jv2 -> do
+
+getJsonFieldMay :: (MonadIO m, A.FromJSON a, MonadLogger m)
+                => A.Value
+                -> Text
+                -> m (Maybe a)
+-- {{{1
+getJsonFieldMay jv field = do
+  case jv ^? key field of
+    Nothing -> return Nothing
+
+    Just jv2 -> fmap Just $ do
       case A.fromJSON jv2 of
         A.Success x -> return x
         A.Error err -> do
@@ -52,5 +70,20 @@ getJsonField jv field = do
                                   <> field <> "' in JSON: " <> fromString err
 
   where jv_txt = toStrict (A.encodeToLazyText jv)
+-- }}}1
+
+
+aesonParseBarSepText :: (Text -> A.Parser a) -> Text -> A.Parser [a]
+aesonParseBarSepText f t =
+  mapM f $ filter (not . null) $ T.splitOn "|" t
+
+aesonParseBarSepNested :: forall a. A.FromJSON a => Text -> A.Parser [a]
+aesonParseBarSepNested t =
+  mapM p_t $ filter (not . null) $ T.splitOn "|" t
+  where
+    p_t :: Text -> A.Parser a
+    p_t s = case A.eitherDecode (fromStrict $ encodeUtf8 s) of
+              Left err -> fail err
+              Right x -> pure x
 
 -- vim: set foldmethod=marker:

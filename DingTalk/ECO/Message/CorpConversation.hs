@@ -21,12 +21,12 @@ import DingTalk.ECO.Message.Types
            , ToJSON, FromJSON \
            )
 
-newtype CorpConversationAsyncSendTaskID = CorpConversationAsyncSendTaskID { unCorpConversationAsyncSendTaskID :: Text }
+newtype CorpConversationAsyncSendTaskId = CorpConversationAsyncSendTaskId { unCorpConversationAsyncSendTaskId :: Text }
   NEWTYPE_TEXT_DERIVING
 
 data CorpConversationAsyncSendResp =
   CorpConversationAsyncSendResp
-    CorpConversationAsyncSendTaskID
+    CorpConversationAsyncSendTaskId
 
 -- {{{1 instances
 instance FromJSON CorpConversationAsyncSendResp where
@@ -39,9 +39,9 @@ instance FromJSON CorpConversationAsyncSendResp where
 
 ecoCorpConversationAsyncSend :: (HttpCallMonad env m)
                              => EcoCommonParam
-                             -> AgentID
+                             -> AgentId
                              -> Message
-                             -> [Either UserID DeptID]
+                             -> [Either UserId DeptId]
                              -> m (Either EcoError CorpConversationAsyncSendResp)
 -- {{{1
 ecoCorpConversationAsyncSend eco_common agent_id msg to_recvs = do
@@ -51,13 +51,13 @@ ecoCorpConversationAsyncSend eco_common agent_id msg to_recvs = do
     dept_ids = rights to_recvs
 
     extra_params = catMaybes
-      [ Just ("agent_id", unAgentID agent_id)
+      [ Just ("agent_id", unAgentId agent_id)
       , Just ("msgtype", fromString (simpleEncode $ getMessageType msg))
       , Just ("msgcontent", toStrict (decodeUtf8 (A.encode $ messageContentToJSON msg)))
 
       , if null user_ids
            then Nothing
-           else Just ("userid_list", intercalate "," (map unUserID user_ids))
+           else Just ("userid_list", intercalate "," (map unUserId user_ids))
 
       , if null dept_ids
            then Nothing

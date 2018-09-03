@@ -21,8 +21,10 @@ import DingTalk
 -- }}}1
 
 data ManageCmd = Scopes
+               | DeptSubForest (Maybe DeptId)
+               | ShowDeptDetails DeptId
                | UploadMedia MediaType FilePath
-               | DownloadMedia MediaID
+               | DownloadMedia MediaId
                deriving (Show)
 
 data Options = Options
@@ -52,6 +54,14 @@ manageCmdParser = subparser $
     (info (helper <*> pure Scopes)
           (progDesc "获取 AccessToken 并看权限范围")
     )
+  <> command "dept-sub-forest"
+    (info (helper <*> (pure DeptSubForest <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
+          (progDesc "显示部门树")
+    )
+  <> command "show-dept"
+    (info (helper <*> (pure ShowDeptDetails <*> fmap DeptId (argument auto (metavar "DEPT_ID"))))
+          (progDesc "显示部门信息")
+    )
   <> command "upload-media"
     (info (helper <*> ( UploadMedia
                           <$> (argument (simpleEncodedStringReader "media type") (metavar "MEDIA_TYPE"))
@@ -62,7 +72,7 @@ manageCmdParser = subparser $
     )
   <> command "download-media"
     (info (helper <*> ( DownloadMedia
-                          <$> (MediaID . fromString <$> argument str (metavar "MEDIA_ID"))
+                          <$> (MediaId . fromString <$> argument str (metavar "MEDIA_ID"))
                       )
           )
           (progDesc "下载media_id对应的文件, 内容直接从 stdout 输出")
@@ -87,7 +97,7 @@ start :: (MonadLogger m, MonadCatch m, MonadIO m)
       -> m ()
 -- {{{1
 start opts api_env = flip runReaderT api_env $ do
-  err_or_atk <- oapiGetAccessToken' corp_id corp_secret
+  err_or_atk <- oapiGetAccessToken corp_id corp_secret
   atk <- case err_or_atk of
     Right atk -> return atk
     Left err -> do
@@ -99,10 +109,28 @@ start opts api_env = flip runReaderT api_env $ do
       err_or_res <- flip runReaderT atk $ oapiGetAccessTokenScopes
       case err_or_res of
         Left err -> do
-          $logError $ "  failed: " <> tshow err
+          $logError $ "oapiGetAccessTokenScopes failed: " <> tshow err
         Right resp -> do
           putStrLn $ "AccessToken is: " <> unAccessToken atk
           putStrLn $ tshow resp
+
+    ShowDeptDetails dept_id -> do
+      err_or_res <- flip runReaderT atk $ oapiGetDeptDetails dept_id
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiGetDeptDetails failed: " <> tshow err
+        Right details -> do
+          putStrLn $ "Name: " <> deptDetailsName details
+          putStrLn $ "Manager User Ids" <> tshow (deptDetailsManagerUserIds details)
+          putStrLn $ "Source Identifier: " <> fromMaybe "" (deptDetailsSourceIdentifier details)
+
+    DeptSubForest m_dept_id -> do
+      err_or_res <- flip runReaderT atk $ oapiGetDeptSubForest (fromMaybe rootDeptId m_dept_id)
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiGetDeptSubForest failed: " <> tshow err
+        Right sub_forest -> do
+          putStrLn $ tshow sub_forest
 
     UploadMedia media_type file_path -> do
       file_body <- liftIO $ streamFile file_path
@@ -112,7 +140,7 @@ start opts api_env = flip runReaderT api_env $ do
         Left err -> do
           $logError $ "oapiUploadMedia failed: " <> tshow err
         Right (UploadMediaResp media_id media_type _created_time) -> do
-          putStrLn $ "MediaID is: " <> unMediaID media_id
+          putStrLn $ "MediaId is: " <> unMediaId media_id
           putStrLn $ "Types is: " <> fromString (simpleEncode media_type)
 
     DownloadMedia media_id -> do

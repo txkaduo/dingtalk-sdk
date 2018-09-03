@@ -25,6 +25,7 @@ library
                        DingTalk.Helpers
                        DingTalk.OAPI.Basic
                        DingTalk.OAPI.Contacts
+                       DingTalk.OAPI.SNS
                        DingTalk.OAPI.Crypto
                        DingTalk.OAPI.Media
                        DingTalk.ECO.Basic
@@ -35,6 +36,7 @@ library
   build-depends:       base >= 4.7 && < 5
                      , classy-prelude
                      , text
+                     , containers
                      , aeson
                      , aeson-extra
                      , shakespeare
@@ -54,7 +56,9 @@ library
                      , cryptohash
                      , HTTP
                      , http-client
+                     , http-types
                      , mime-types
+                     , binary
                      , time
                      , parsec-tx-utils >= 0.3
                      , persistent-tx-utils >= 0.1
@@ -88,7 +92,8 @@ library
 
   if flag(dev)
       cpp-options:   -DDEVELOPMENT
-      ghc-options:   -O0 +RTS -A128m -n2m -RTS
+      -- ghc-options:   -O0 +RTS -A128m -n2m -RTS
+      -- 不知道为什么上面的ghc-options会引起 haddock 错误
   else
       ghc-options:   -O
 

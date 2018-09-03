@@ -1,10 +1,9 @@
 module DingTalk.OAPI.Basic
   ( OapiError(..), OapiErrorOrPayload(..)
-  , AccessTokenResp(..)
-  , oapiGetAccessToken, oapiGetAccessToken'
+  , oapiGetAccessToken, oapiAccessTokenTTL
   , JsapiTicketResp(..), oapiGetJsapiTicket
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
-  , AuthOrgScopes(..), AuthTokenScopeResp(..), oapiGetAccessTokenScopes
+  , AuthOrgEntiies(..), AuthScopes(..), oapiGetAccessTokenScopes
   , oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
   , oapiUrlBase
   , module DingTalk.Types
@@ -16,7 +15,10 @@ import           Control.Lens         hiding ((.=))
 import           Control.Monad.Logger
 import           Control.Monad.Reader (asks)
 import           Data.Aeson           as A
-import           Network.Wreq
+import qualified Data.Aeson.Extra     as AE
+import qualified Data.ByteString.Lazy as LB
+import           Data.Proxy
+import           Network.Wreq hiding (Proxy)
 import           Network.Wreq.Types   (Postable)
 import qualified Network.Wreq.Session as WS
 
@@ -30,10 +32,10 @@ data OapiError = OapiError
   , oapiErrorMsg :: Text
   }
 
+-- {{{1 instances
 instance Show OapiError where
   show (OapiError c m) = intercalate " " [ "OapiError", show c, unpack m ]
 
--- {{{1 instances
 instance FromJSON OapiError where
   parseJSON = withObject "OapiError" $ \ o ->
     OapiError <$> o .: "errcode"
@@ -75,35 +77,21 @@ oapiToPayload v = do
 -- }}}1
 
 
-data AccessTokenResp = AccessTokenResp
-  { accessTokenRespAccessToken :: AccessToken
-  }
-
--- {{{1 instances
-instance FromJSON AccessTokenResp where
-  parseJSON = withObject "AccessTokenResp" $ \ o -> do
-    AccessTokenResp <$> o .: "access_token"
--- }}}1
-
-
-oapiGetAccessToken' :: HttpCallMonad env m
-                    => CorpId
-                    -> CorpSecret
-                    -> m (Either OapiError AccessToken)
-oapiGetAccessToken' corp_id corp_secret =
-  fmap (fmap accessTokenRespAccessToken) $ oapiGetAccessToken corp_id corp_secret
-
+-- | 文档说 access token 有效期固定为 7200 秒，且每次有效期内重复获取会自动续期
+oapiAccessTokenTTL :: Num a => a
+oapiAccessTokenTTL = fromIntegral (7200 :: Int)
 
 oapiGetAccessToken :: HttpCallMonad env m
                    => CorpId
                    -> CorpSecret
-                   -> m (Either OapiError AccessTokenResp)
+                   -> m (Either OapiError AccessToken)
 -- {{{1
 oapiGetAccessToken corp_id corp_secret = do
   oapiGetCall "/gettoken"
     [ "corpid" &= corp_id
     , "corpsecret" &= corp_secret
     ]
+    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "access_token"))
 -- }}}1
 
 
@@ -131,8 +119,8 @@ oapiGetJsapiTicket = do
 
 
 data UserInfoByCodeResp = UserInfoByCodeResp
-                            DeviceID
-                            UserID
+                            DeviceId
+                            UserId
                             Bool
                             Int
 
@@ -157,34 +145,56 @@ oapiGetUserInfoByAuthCode auth_code = do
 -- }}}1
 
 
-data AuthOrgScopes = AuthOrgScopes
-                      [ DeptID ]
-                      [ UserID ]
-                    deriving (Show)
+data AuthOrgEntiies = AuthOrgEntiies
+  { authDeptIds :: [ DeptId ]
+  , authUserIds :: [ UserId ]
+  }
+  deriving (Show)
 
-instance FromJSON AuthOrgScopes where
-  parseJSON = withObject "AuthOrgScopes" $ \ o ->
-    AuthOrgScopes <$> o .: "authed_dept"
-                  <*> o .: "authed_user"
+instance FromJSON AuthOrgEntiies where
+  parseJSON = withObject "AuthOrgEntiies" $ \ o ->
+    AuthOrgEntiies <$> o .: "authed_dept"
+                   <*> o .: "authed_user"
 
 
-data AuthTokenScopeResp = AuthTokenScopeResp
-                            [Text]
-                            [Text]
-                            AuthOrgScopes
-                          deriving (Show)
+data AuthScopes = AuthScopes
+  { authUserFields      :: [Text]
+  , authConditionFields :: [Text]
+  , authEntities        :: AuthOrgEntiies
+  }
+  deriving (Show)
 
-instance FromJSON AuthTokenScopeResp where
-  parseJSON = withObject "AuthTokenScopeResp" $ \ o ->
-    AuthTokenScopeResp <$> o .: "auth_user_field"
-                       <*> o .: "condition_field"
-                       <*> o .: "auth_org_scopes"
+instance FromJSON AuthScopes where
+  parseJSON = withObject "AuthScopes" $ \ o ->
+    AuthScopes <$> o .: "auth_user_field"
+                     <*> o .: "condition_field"
+                     <*> o .: "auth_org_scopes"
 
 
 oapiGetAccessTokenScopes :: HttpCallMonad env m
-                         => ReaderT AccessToken m (Either OapiError AuthTokenScopeResp)
+                         => ReaderT AccessToken m (Either OapiError AuthScopes)
 oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
+
+oapiConvertResp :: (FromJSON a, MonadIO m, MonadLogger m, MonadThrow m)
+                => String
+                -> Response LB.ByteString
+                -> m (Either OapiError a)
+-- {{{1
+oapiConvertResp url_path r = do
+  let response_txt = toStrict $ decodeUtf8 (r ^. responseBody)
+  $logDebugS logSourceName $ "api '" <> fromString url_path <> "' response:\n" <> response_txt
+
+  case eitherDecode (r ^. responseBody) of
+    Left err -> do
+      $logErrorS logSourceName $
+        "Failed to decode response as JSON: " <> fromString err
+        <> ", response was:\n" <> response_txt
+      liftIO $ throwM $ JSONError err
+
+    Right resp_json -> do
+      oapiToPayload resp_json
+-- }}}1
 
 
 oapiGetCall :: (HttpCallMonad env m, FromJSON a)
@@ -195,9 +205,7 @@ oapiGetCall :: (HttpCallMonad env m, FromJSON a)
 oapiGetCall url_path kv_list = do
   sess <- asks getWreqSession
   liftIO (WS.getWith opts sess url)
-    >>= asJSON
-    >>= return . view responseBody
-    >>= oapiToPayload
+    >>= oapiConvertResp url_path
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
@@ -225,9 +233,7 @@ oapiPostCall :: (HttpCallMonad env m, FromJSON a, Postable b)
 oapiPostCall url_path kv_list post_data = do
   sess <- asks getWreqSession
   liftIO (WS.postWith opts sess url post_data)
-    >>= asJSON
-    >>= return . view responseBody
-    >>= oapiToPayload
+    >>= oapiConvertResp url_path
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
