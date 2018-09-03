@@ -19,7 +19,9 @@ data OapiError = OapiError
   { oapiErrorCode :: Int
   , oapiErrorMsg :: Text
   }
-  deriving (Show)
+
+instance Show OapiError where
+  show (OapiError c m) = intercalate " " [ "OapiError", show c, unpack m ]
 
 -- {{{1 instances
 instance FromJSON OapiError where
