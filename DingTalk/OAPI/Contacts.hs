@@ -7,6 +7,7 @@ module DingTalk.OAPI.Contacts
   , DeptDetails(..), oapiGetDeptSubForest
   , oapiGetAdminDeptList, oapiGetDeptDetails
   , oapiMaxPageSize
+  , oapiGetUserIdByUnionId
   ) where
 
 -- {{{1 imports
@@ -238,6 +239,16 @@ oapiGetAdminDeptList user_id =
     [ "userid" &= user_id
     ]
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "dept_ids"))
+
+
+oapiGetUserIdByUnionId :: HttpCallMonad env m
+                       => UnionId
+                       -> ReaderT AccessToken m (Either OapiError UserId)
+oapiGetUserIdByUnionId union_id =
+  oapiGetCallWithAtk "/user/getUseridByUnionid"
+    [ "unionid" &= union_id
+    ]
+    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "userid"))
 
 
 -- vim: set foldmethod=marker:

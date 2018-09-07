@@ -5,6 +5,7 @@ module DingTalk.OAPI.Basic
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
   , AuthOrgEntiies(..), AuthScopes(..), oapiGetAccessTokenScopes
   , oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
+  , oapiGetCallWithAtkLike, oapiPostCallWithAtkLike
   , oapiUrlBase
   , module DingTalk.Types
   ) where
@@ -212,16 +213,22 @@ oapiGetCall url_path kv_list = do
 -- }}}1
 
 
-oapiGetCallWithAtk :: (HttpCallMonad env m, FromJSON a)
-                   => String
-                   -> ParamKvList
-                   -> ReaderT AccessToken m (Either OapiError a)
+oapiGetCallWithAtkLike :: (HttpCallMonad env m, FromJSON a, ParamValue k)
+                       => String
+                       -> ParamKvList
+                       -> ReaderT k m (Either OapiError a)
 -- {{{1
-oapiGetCallWithAtk url_path kv_list = do
+oapiGetCallWithAtkLike url_path kv_list = do
   atk <- ask
   let kv_list' = ("access_token" &= atk) : kv_list
   lift $ oapiGetCall url_path kv_list'
 -- }}}1
+
+oapiGetCallWithAtk :: (HttpCallMonad env m, FromJSON a)
+                   => String
+                   -> ParamKvList
+                   -> ReaderT AccessToken m (Either OapiError a)
+oapiGetCallWithAtk = oapiGetCallWithAtkLike
 
 
 oapiPostCall :: (HttpCallMonad env m, FromJSON a, Postable b)
@@ -240,17 +247,25 @@ oapiPostCall url_path kv_list post_data = do
 -- }}}1
 
 
+oapiPostCallWithAtkLike :: (HttpCallMonad env m, FromJSON a, Postable b, ParamValue k)
+                        => String
+                        -> ParamKvList
+                        -> b
+                        -> ReaderT k m (Either OapiError a)
+-- {{{1
+oapiPostCallWithAtkLike url_path kv_list post_data = do
+  atk <- ask
+  let kv_list' = ("access_token" &= atk) : kv_list
+  lift $ oapiPostCall url_path kv_list' post_data
+-- }}}1
+
+
 oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
                     => String
                     -> ParamKvList
                     -> b
                     -> ReaderT AccessToken m (Either OapiError a)
--- {{{1
-oapiPostCallWithAtk url_path kv_list post_data = do
-  atk <- ask
-  let kv_list' = ("access_token" &= atk) : kv_list
-  lift $ oapiPostCall url_path kv_list' post_data
--- }}}1
+oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
 
 

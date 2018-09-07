@@ -8,6 +8,8 @@ module DingTalk
   , module DingTalk.ECO.Basic
   , module DingTalk.ECO.Message.Types
   , module DingTalk.ECO.Message.CorpConversation
+  , module DingTalk.Yesod
+  , module DingTalk.Misc
   ) where
 
 import DingTalk.Types
@@ -19,3 +21,5 @@ import DingTalk.OAPI.Media
 import DingTalk.ECO.Basic
 import DingTalk.ECO.Message.Types
 import DingTalk.ECO.Message.CorpConversation
+import DingTalk.Yesod
+import DingTalk.Misc

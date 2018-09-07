@@ -1,10 +1,12 @@
 module DingTalk.OAPI.SNS
-  ( oapiSnsGetToken
+  ( oapiSnsGetAccessToken, oapiSnsAccessTokenTTL
+  , oapiSnsGetPersistentAuthCodeTTL
   , SnsPersistentAuthCodeResp(..), oapiSnsGetPersistentAuthCode
   , oapiSnsGetUserSnsToken
   , SnsUserInfo(..), oapiSnsGetUserInfo
   , oapiSnsQrCodeLoginRedirectUrl, oapiSnsDingTalkLoginRedirectUrl
-  , httpUserAgentDingTalkVer
+  , validateSnsTmpAuthCode
+  , oapiGetCallWithSnsAtk, oapiPostCallWithSnsAtk
   ) where
 
 -- {{{1 imports
@@ -13,8 +15,8 @@ import qualified Data.ByteString.Builder as BB
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import           Data.Proxy
-import qualified Data.Text            as T
 import           Network.HTTP.Types   (renderQueryText)
+import           Network.Wreq.Types   (Postable)
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
@@ -22,18 +24,28 @@ import DingTalk.Helpers
 
 
 -- | 获取开放应用的access token
-oapiSnsGetToken :: HttpCallMonad env m
-                => SnsAppId
-                -> SnsAppSecret
-                -> m (Either OapiError AccessToken)
+oapiSnsGetAccessToken :: HttpCallMonad env m
+                      => SnsAppId
+                      -> SnsAppSecret
+                      -> m (Either OapiError SnsAccessToken)
 -- {{{1
-oapiSnsGetToken app_id app_secret = do
+oapiSnsGetAccessToken app_id app_secret = do
   oapiGetCall "/sns/gettoken"
     [ "appid" &= app_id
     , "appsecret" &= app_secret
     ]
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "access_token"))
 -- }}}1
+
+
+-- | 文档说 access token 有效期固定为 7200 秒，且每次有效期内重复获取会自动续期
+oapiSnsAccessTokenTTL :: Num a => a
+oapiSnsAccessTokenTTL = fromIntegral (7200 :: Int)
+
+
+-- | 永久授权码无过期时间
+oapiSnsGetPersistentAuthCodeTTL :: Num a => a
+oapiSnsGetPersistentAuthCodeTTL = fromIntegral (maxBound :: Int)
 
 
 data SnsPersistentAuthCodeResp = SnsPersistentAuthCodeResp OpenId UnionId SnsPersistentAuthCode
@@ -45,19 +57,24 @@ instance FromJSON SnsPersistentAuthCodeResp where
                               <*> o .: "persistent_code"
 
 
+-- | 文档无解释登录不成功会不会收到code，收到什么样的code
+validateSnsTmpAuthCode :: SnsTmpAuthCode -> Bool
+validateSnsTmpAuthCode = not . null . unSnsTmpAuthCode
+
+
 oapiSnsGetPersistentAuthCode :: HttpCallMonad env m
                              => SnsTmpAuthCode
-                             -> ReaderT AccessToken m (Either OapiError SnsPersistentAuthCodeResp)
+                             -> ReaderT SnsAccessToken m (Either OapiError SnsPersistentAuthCodeResp)
 oapiSnsGetPersistentAuthCode tmp_auth_code =
-  oapiPostCallWithAtk "/sns/get_persistent_code" [] (object [ "tmp_auth_code" .= tmp_auth_code ])
+  oapiPostCallWithSnsAtk "/sns/get_persistent_code" [] (object [ "tmp_auth_code" .= tmp_auth_code ])
 
 
 oapiSnsGetUserSnsToken :: HttpCallMonad env m
                        => OpenId
                        -> SnsPersistentAuthCode
-                       -> ReaderT AccessToken m (Either OapiError SnsToken)
+                       -> ReaderT SnsAccessToken m (Either OapiError SnsToken)
 oapiSnsGetUserSnsToken open_id p_auth_code =
-  oapiPostCallWithAtk "/sns/get_sns/token" []
+  oapiPostCallWithSnsAtk "/sns/get_sns/token" []
     $ object [ "openid" .= open_id, "persistent_code" .= p_auth_code ]
 
 
@@ -124,18 +141,19 @@ oapiSnsDingTalkLoginRedirectUrl app_id m_state return_url =
 -- }}}1
 
 
-httpUserAgentDingTalkVer :: Text -> Maybe Text
--- {{{1
-httpUserAgentDingTalkVer ua = do
-  guard $ not $ null s1
-  let s2 = T.drop (T.length p) s1
-  let (ver, s3) = T.breakOn ")" s2
-  guard $ not $ null s3
-  return $ T.strip ver
-  where
-    p = "(DingTalk/"
-    (_, s1) = T.breakOn p ua
--- }}}1
+oapiGetCallWithSnsAtk :: (HttpCallMonad env m, FromJSON a)
+                      => String
+                      -> ParamKvList
+                      -> ReaderT SnsAccessToken m (Either OapiError a)
+oapiGetCallWithSnsAtk = oapiGetCallWithAtkLike
+
+
+oapiPostCallWithSnsAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
+                       => String
+                       -> ParamKvList
+                       -> b
+                       -> ReaderT SnsAccessToken m (Either OapiError a)
+oapiPostCallWithSnsAtk = oapiPostCallWithAtkLike
 
 
 -- vim: set foldmethod=marker:

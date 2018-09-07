@@ -45,6 +45,7 @@ instance ParamValue SomeParamValue where
 #define NEWTYPE_DEF_TEXT(t1) NEWTYPE_DEF(t1, Text) NEWTYPE_TEXT_DERIVING
 
 NEWTYPE_DEF_TEXT(AccessToken)
+NEWTYPE_DEF_TEXT(SnsAccessToken)
 NEWTYPE_DEF_TEXT(CorpId)
 NEWTYPE_DEF_TEXT(CorpSecret)
 NEWTYPE_DEF_TEXT(JsapiTicket)
