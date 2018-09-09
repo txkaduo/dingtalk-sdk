@@ -3,8 +3,11 @@ module Main where
 -- {{{1 imports
 import           ClassyPrelude
 import           Control.Lens         hiding ((.=), argument)
+import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
 import qualified Data.ByteString.Lazy as LB
+import           Data.Conduit (($$), (=$=))
+import qualified Data.Conduit.List as CL
 import           Network.HTTP.Client   (streamFile)
 import           Network.Wreq         (responseBody, responseHeader)
 import qualified Network.Wreq.Session  as WS
@@ -21,6 +24,7 @@ import DingTalk
 -- }}}1
 
 data ManageCmd = Scopes
+               | SearchUser Text
                | DeptSubForest (Maybe DeptId)
                | ShowDeptDetails DeptId
                | UploadMedia MediaType FilePath
@@ -53,6 +57,10 @@ manageCmdParser = subparser $
   command "scopes"
     (info (helper <*> pure Scopes)
           (progDesc "获取 AccessToken 并看权限范围")
+    )
+  <> command "search-user"
+    (info (helper <*> (pure SearchUser <*> fmap fromString (argument str (metavar "USER_NAME"))))
+          (progDesc "按用户名搜索钉钉用户")
     )
   <> command "dept-sub-forest"
     (info (helper <*> (pure DeptSubForest <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
@@ -110,9 +118,30 @@ start opts api_env = flip runReaderT api_env $ do
       case err_or_res of
         Left err -> do
           $logError $ "oapiGetAccessTokenScopes failed: " <> tshow err
+          liftIO exitFailure
+
         Right resp -> do
           putStrLn $ "AccessToken is: " <> unAccessToken atk
           putStrLn $ tshow resp
+
+    SearchUser name -> do
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+        oapiSourceDeptUserSimpleInfoRecursive rootDeptId
+                        =$= CL.filter ((== name) . userSimpleInfoName)
+                        =$= CL.mapM (ExceptT . oapiGetUserDetails . userSimpleInfoId)
+                        =$= CL.catMaybes
+                        $$ CL.consume
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "some api failed: " <> tshow err
+          liftIO exitFailure
+
+        Right user_details_list -> do
+          forM_ user_details_list $ \ user_details -> do
+            putStrLn $ "User Id: " <> unUserId (userDetailsUserId user_details)
+            putStrLn $ "User Name: " <> userDetailsName user_details
+            putStrLn $ "User Roles: " <> tshow (userDetailsRoles user_details)
 
     ShowDeptDetails dept_id -> do
       err_or_res <- flip runReaderT atk $ oapiGetDeptDetails dept_id

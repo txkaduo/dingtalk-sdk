@@ -7,16 +7,19 @@ module DingTalk.OAPI.SNS
   , oapiSnsQrCodeLoginRedirectUrl, oapiSnsDingTalkLoginRedirectUrl
   , validateSnsTmpAuthCode
   , oapiGetCallWithSnsAtk, oapiPostCallWithSnsAtk
+  , DingTalkSnsAccessTokenRun(..)
   ) where
 
 -- {{{1 imports
 import           ClassyPrelude
+import           Control.Monad.Logger
 import qualified Data.ByteString.Builder as BB
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import           Data.Proxy
 import           Network.HTTP.Types   (renderQueryText)
 import           Network.Wreq.Types   (Postable)
+import qualified Network.Wreq.Session as WS
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
@@ -48,7 +51,11 @@ oapiSnsGetPersistentAuthCodeTTL :: Num a => a
 oapiSnsGetPersistentAuthCodeTTL = fromIntegral (maxBound :: Int)
 
 
-data SnsPersistentAuthCodeResp = SnsPersistentAuthCodeResp OpenId UnionId SnsPersistentAuthCode
+data SnsPersistentAuthCodeResp = SnsPersistentAuthCodeResp
+  { snsPersistentAuthCodeRespOpenId   :: OpenId
+  , snsPersistentAuthCodeRespUnionId  :: UnionId
+  , snsPersistentAuthCodeRespAuthCode :: SnsPersistentAuthCode
+  }
 
 instance FromJSON SnsPersistentAuthCodeResp where
   parseJSON = withObject "SnsPersistentAuthCodeResp" $ \ o ->
@@ -154,6 +161,10 @@ oapiPostCallWithSnsAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
                        -> b
                        -> ReaderT SnsAccessToken m (Either OapiError a)
 oapiPostCallWithSnsAtk = oapiPostCallWithAtkLike
+
+
+class (MonadIO m, MonadLogger m) => DingTalkSnsAccessTokenRun m a where
+  runWithDingTalkSnsAccessToken :: a -> ReaderT SnsAccessToken (ReaderT WS.Session m) r -> m r
 
 
 -- vim: set foldmethod=marker:

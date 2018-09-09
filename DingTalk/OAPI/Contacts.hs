@@ -2,8 +2,10 @@
 module DingTalk.OAPI.Contacts
   ( oapiGetDeptListIds
   , DeptInfo(..), oapiGetDeptList
+  , Role(..), UserDetails(..), oapiGetUserDetails
   , UserSimpleInfo(..), DeptUserSortOrder(..), oapiGetDeptUserSimpleList
-  , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList, oapiSourceDeptUserSimpleInfo
+  , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList
+  , oapiSourceDeptUserSimpleInfo, oapiSourceDeptUserSimpleInfoRecursive
   , DeptDetails(..), oapiGetDeptSubForest
   , oapiGetAdminDeptList, oapiGetDeptDetails
   , oapiMaxPageSize
@@ -18,6 +20,7 @@ import qualified Data.Aeson.Extra     as AE
 import           Data.Conduit
 import           Data.Tree
 import           Data.Proxy
+import           Data.Time.Clock.POSIX
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
@@ -197,6 +200,80 @@ oapiSourceDeptUserSimpleInfo m_sort_order parent_id = src Nothing
 -- }}}1
 
 
+oapiSourceDeptUserSimpleInfoRecursive :: HttpCallMonad env m
+                                      => DeptId
+                                      -> Source (ExceptT OapiError (ReaderT AccessToken m)) UserSimpleInfo
+oapiSourceDeptUserSimpleInfoRecursive dept_id = do
+  dept_info_list <- lift $ ExceptT $ oapiGetDeptList True dept_id
+  mconcat (map (oapiSourceDeptUserSimpleInfo Nothing . deptInfoId) dept_info_list)
+
+
+data Role = Role
+  { roleId        :: RoleId
+  , roleName      :: Text
+  , roleGroupName :: Text
+  -- XXX: 实际返回还有个 type 字段，是个数字，意义不明
+  }
+
+-- {{{1 instances
+instance Show Role where
+  show (Role xid name grp_name) =
+    intercalate " " [ "Role", show xid, unpack name, unpack grp_name ]
+
+instance FromJSON Role where
+  parseJSON = withObject "Role" $ \ o ->
+                Role <$> o .: "id"
+                     <*> o .: "name"
+                     <*> o .: "groupName"
+-- }}}1
+
+
+data UserDetails = UserDetails
+  { userDetailsUserId      :: UserId
+  , userDetailsOpenId      :: OpenId
+  , userDetailsUnionId     :: UnionId
+  , userDetailsName        :: Text
+  , userDetailsMobile      :: Maybe Text
+  , userDetailsOrgEmail    :: Maybe Text
+  , userDetailsActive      :: Bool
+  , userDetailsIsAdmin     :: Bool
+  , userDetailsIsBoss      :: Bool
+  , userDetailsIsSenior    :: Bool
+  , userDetailsDepartments :: [DeptId]
+  , userDetailsAvatar      :: Maybe Text
+  , userDetailsHiredTime   :: Maybe POSIXTime
+  , userDetailsRoles       :: [Role]
+  -- XXX: 还有许多字段没有反映在这个类型里
+  }
+
+-- {{{1 instances
+instance FromJSON UserDetails where
+  parseJSON = withObject "UserDetails" $ \ o ->
+                UserDetails <$> o .: "userid"
+                            <*> o .: "openId"
+                            <*> o .: "unionid"
+                            <*> o .: "name"
+                            <*> (o .:? "mobile" >>= nullTextAsNothing)
+                            <*> (o .:? "orgEmail" >>= nullTextAsNothing)
+                            <*> o .: "active"
+                            <*> o .: "isAdmin"
+                            <*> o .: "isBoss"
+                            <*> o .: "isSenior"
+                            <*> o .: "department"
+                            <*> (o .:? "avatar" >>= nullTextAsNothing)
+                            <*> o .:? "hiredDate"
+                            <*> o .: "roles"
+-- }}}1
+
+oapiGetUserDetails :: HttpCallMonad env m
+                   => UserId
+                   -> ReaderT AccessToken m (Either OapiError (Maybe UserDetails))
+oapiGetUserDetails user_id =
+  oapiGetCallWithAtk "/user/get"
+    [ "userid" &= user_id
+    ]
+
+
 data AdminLevel = AdminLevelPrimary
                 | AdminLevelSub
 
@@ -208,7 +285,6 @@ instance FromJSON AdminLevel where
                     2 -> pure AdminLevelSub
                     _ -> fail $ "unknown admin level: " <> show i
 -- }}}1
-  
 
 data AdminSimpleInfo = AdminSimpleInfo
   { adminSimpleInfoLevel :: AdminLevel

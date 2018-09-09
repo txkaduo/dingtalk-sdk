@@ -86,4 +86,12 @@ aesonParseBarSepNested t =
               Left err -> fail err
               Right x -> pure x
 
+
+nullTextAsNothing :: Applicative m => Maybe Text -> m (Maybe Text)
+nullTextAsNothing mt =
+  case mt of
+    Just t | null t -> pure Nothing
+           | otherwise -> pure $ Just t
+    _ -> pure Nothing
+
 -- vim: set foldmethod=marker:

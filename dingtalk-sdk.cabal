@@ -119,6 +119,8 @@ executable dingtalk-manage
                      , wreq
                      , lens
                      , bytestring
+                     , transformers
+                     , conduit
                      , parsec-tx-utils
 
   default-language:    Haskell2010

@@ -7,6 +7,7 @@ module DingTalk.OAPI.Basic
   , oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
   , oapiGetCallWithAtkLike, oapiPostCallWithAtkLike
   , oapiUrlBase
+  , DingTalkAccessTokenRun(..)
   , module DingTalk.Types
   ) where
 
@@ -267,6 +268,9 @@ oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
                     -> ReaderT AccessToken m (Either OapiError a)
 oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
+
+class (MonadIO m, MonadLogger m) => DingTalkAccessTokenRun m a where
+  runWithDingTalkAccessToken :: a -> ReaderT AccessToken (ReaderT WS.Session m) r -> m r
 
 
 -- vim: set foldmethod=marker:

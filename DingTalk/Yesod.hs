@@ -2,12 +2,16 @@ module DingTalk.Yesod where
 
 -- {{{1 imports
 import           ClassyPrelude.Yesod hiding (requestHeaders)
+import           Control.Monad.Trans.Except
 import           Yesod.Core.Types (HandlerContents(HCError))
 import           Data.List ((!!))
 import           Network.Wai         (requestHeaders)
 import           System.Random (randomRIO)
 
 import           DingTalk.Types
+import           DingTalk.OAPI.Basic
+import           DingTalk.OAPI.Contacts
+import           DingTalk.OAPI.SNS
 import           DingTalk.Misc (httpUserAgentDingTalkVer)
 -- }}}1
 
@@ -68,5 +72,108 @@ handlerCheckSnsReturnCodeState app_id = do
 
   return $ fmap SnsTmpAuthCode m_code
 -- }}}1
+
+
+sessionKeyUserId :: CorpId -> Text
+sessionKeyUserId corp_id = "dt-user-id|" <> unCorpId corp_id
+
+handlerSetSessionUserId :: MonadHandler m
+                        => CorpId
+                        -> UserId
+                        -> m ()
+handlerSetSessionUserId corp_id user_id =
+  setSession (sessionKeyUserId corp_id) (unUserId user_id)
+
+
+handlerGetSessionUserId :: MonadHandler m
+                        => CorpId
+                        -> m (Maybe UserId)
+handlerGetSessionUserId corp_id =
+  fmap (fmap UserId) $ lookupSession (sessionKeyUserId corp_id)
+
+
+-- | 根据是否在钉钉打开页面，选择适当的重定向入口，完成使用钉钉登录
+handlerDingTalkLoginUrl :: ( MonadHandler m
+                           , HasDingTalkLoginAppId (HandlerSite m)
+                           )
+                        => Text
+                        -> m Text
+-- {{{1
+handlerDingTalkLoginUrl return_url = do
+  foundation <- getYesod
+  let login_app_id = getDingTalkLoginAppId foundation
+
+  state <- handlerMakeRandomState login_app_id
+
+  fmap isJust handlerGetDingTalkVer
+          >>= return
+              . bool
+                  (oapiSnsQrCodeLoginRedirectUrl login_app_id (Just state) return_url)
+                  (oapiSnsDingTalkLoginRedirectUrl login_app_id (Just state) return_url)
+
+-- }}}1
+
+
+-- | 使用钉钉登录，并返回UserId到原处理逻辑．实际上可能发生多次重定向
+handlerDingTalkLoginComeBack :: (MonadHandler m
+                                , Yesod (HandlerSite m)
+                                , HasDingTalkLoginAppId (HandlerSite m)
+                                , HasDingTalkCorpId (HandlerSite m)
+                                , DingTalkAccessTokenRun m (HandlerSite m)
+                                , DingTalkSnsAccessTokenRun m (HandlerSite m)
+                                , ToTypedContent c
+                                )
+                             => (WidgetT (HandlerSite m) IO () -> m c)
+                             -- ^ usually it is 'defaultLayout'
+                             -> m UserId
+-- {{{1
+handlerDingTalkLoginComeBack show_widget = do
+  foundation <- getYesod
+  let corp_id = getDingTalkCorpId foundation
+      login_app_id = getDingTalkLoginAppId foundation
+
+  m_uid <- handlerGetSessionUserId corp_id
+  case m_uid of
+    Just x -> return x
+    Nothing -> do
+      m_code <- handlerCheckSnsReturnCodeState login_app_id
+      case m_code of
+        Just code
+          | validateSnsTmpAuthCode code -> do
+              err_or <- runExceptT $ do
+                union_id <- ExceptT $ runWithDingTalkSnsAccessToken foundation $ runExceptT $ do
+                  fmap snsPersistentAuthCodeRespUnionId $ ExceptT $ oapiSnsGetPersistentAuthCode code
+
+                ExceptT $ runWithDingTalkAccessToken foundation $ oapiGetUserIdByUnionId union_id
+
+              case err_or of
+                Right x -> return x
+                Left err -> do
+                  $logErrorS logSourceName $ "DingTalk api error: " <> tshow err
+                  fail $ "钉钉接口错误，请稍后重试"
+
+          | otherwise -> do
+              rdr_url <- get_rdr_url
+              setMessage $ "钉钉登录失败"
+              (sendResponse =<<) $ show_widget $ do
+                setTitle "使用钉钉登录"
+                [whamlet|
+                  <p>
+                    <a href="#{rdr_url}">点击这里重试
+                |]
+
+        Nothing -> do
+          get_rdr_url >>= redirect
+
+  where
+    get_rdr_url = do
+      params0 <- reqGetParams <$> getRequest
+      let params = deleteMap "code" $ deleteMap "state" params0
+      render_url <- getUrlRenderParams
+      current_route <- getCurrentRoute >>= maybe (error "no current route") return
+      let return_url = render_url current_route params
+      handlerDingTalkLoginUrl return_url
+-- }}}1
+
 
 -- vim: set foldmethod=marker:

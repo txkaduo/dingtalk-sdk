@@ -64,6 +64,12 @@ NEWTYPE_DEF_TEXT(SnsPersistentAuthCode)
 
 
 
+NEWTYPE_DEF(RoleId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup \
+           , PersistField, PersistFieldSql \
+           , ToJSON, FromJSON \
+           )
+
 NEWTYPE_DEF(DeptId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup \
            , PersistField, PersistFieldSql \
@@ -87,6 +93,13 @@ class HasWreqSession a where
 
 instance HasWreqSession WS.Session where
     getWreqSession = id
+
+
+class HasDingTalkCorpId a where
+  getDingTalkCorpId :: a -> CorpId
+
+class HasDingTalkLoginAppId a where
+  getDingTalkLoginAppId :: a -> SnsAppId
 
 
 data DatagramError = DatagramError String
