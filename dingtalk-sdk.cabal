@@ -31,6 +31,7 @@ library
                        DingTalk.OAPI.Message.Types
                        DingTalk.OAPI.Message.Chat
                        DingTalk.OAPI.Message.CorpConversation
+                       DingTalk.JS
                        DingTalk.Yesod
                        DingTalk.Misc
                        DingTalk

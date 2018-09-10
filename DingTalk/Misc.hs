@@ -20,8 +20,6 @@ httpUserAgentDingTalkVer ua = do
 -- }}}1
 
 
-dingtalkJsSdkUrl :: IsString s => s
-dingtalkJsSdkUrl = "https://g.alicdn.com/dingding/dingtalk-jsapi/2.0.8/dingtalk.open.js"
 
 
 -- vim: set foldmethod=marker:

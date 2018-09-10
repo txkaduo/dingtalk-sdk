@@ -30,7 +30,7 @@ spec = do
       evaluate (oapiPreprocessUrlForSign "http://abc.com?url=http%3A%2F%2Fabc.com%2somewhere")
         `shouldThrow` ( \ (_ :: ErrorCall) -> True)
 
-  describe "oapiSignUrlWithJsapiTicket'" $ do
+  describe "oapiSignUrlWithJsApiTicket'" $ do
     it "works for simple input" $ do
-      oapiSignUrlWithJsapiTicket' (JsapiTicket "xxx") (Nonce "nonce") 23423244 "http://abc.com"
+      oapiSignUrlWithJsApiTicket' (JsApiTicket "xxx") (Nonce "nonce") 23423244 "http://abc.com"
         `shouldBe` "1ff3af2ddfb918fd2b930996bb954024f3d7eb59"

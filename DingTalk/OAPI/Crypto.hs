@@ -8,7 +8,7 @@ import qualified Data.ByteString.Base16     as B16
 import qualified Data.ByteString.Base64.URL as B64L
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.Text                  as T
-import           Data.Time.Clock.POSIX      (getPOSIXTime)
+import           Data.Time.Clock.POSIX
 import           Network.HTTP               (urlDecode)
 import           System.Random              (randomIO)
 
@@ -50,33 +50,33 @@ oapiPreprocessUrlForSign url = url2 <> qs'
 -- }}}1
 
 
-oapiSignUrlWithJsapiTicket' :: JsapiTicket
+oapiSignUrlWithJsApiTicket' :: JsApiTicket
                             -> Nonce
-                            -> Int64
+                            -> POSIXTime
                             -> Text
                             -> Text
 -- {{{1
-oapiSignUrlWithJsapiTicket' ticket nonce t url =
+oapiSignUrlWithJsApiTicket' ticket nonce t url =
   oapiSignParams
       [ ("url", oapiPreprocessUrlForSign url)
       , ("noncestr", unNonce nonce)
-      , ("jsapi_ticket", unJsapiTicket ticket)
-      , ("timestamp", tshow t)
+      , ("jsapi_ticket", unJsApiTicket ticket)
+      , ("timestamp", tshow (round t :: Int64))
       ]
 -- }}}1
 
 
-oapiSignUrlWithJsapiTicket :: JsapiTicket
+oapiSignUrlWithJsApiTicket :: JsApiTicket
                            -> Text
                            -> IO (Either SomeException
-                                          (Text, (Nonce, Int64))
+                                          (Text, (Nonce, POSIXTime))
                                  )
                                  -- ^ 正常情况下得到签名，及 Nonce, 时间
 -- {{{1
-oapiSignUrlWithJsapiTicket ticket url = tryAny $ do
+oapiSignUrlWithJsApiTicket ticket url = tryAny $ do
   nonce <- oapiMakeNonce 8
-  t <- fmap round $ getPOSIXTime
-  sign <- evaluate $ oapiSignUrlWithJsapiTicket' ticket nonce t url
+  t <- getPOSIXTime
+  sign <- evaluate $ oapiSignUrlWithJsApiTicket' ticket nonce t url
   return (sign, (nonce, t))
 -- }}}1
 

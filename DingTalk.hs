@@ -7,6 +7,7 @@ module DingTalk
   , module DingTalk.OAPI.Media
   , module DingTalk.OAPI.Message.Types
   , module DingTalk.OAPI.Message.Chat
+  , module DingTalk.JS
   , module DingTalk.Yesod
   , module DingTalk.Misc
   ) where
@@ -19,5 +20,6 @@ import DingTalk.OAPI.Crypto
 import DingTalk.OAPI.Media
 import DingTalk.OAPI.Message.Types
 import DingTalk.OAPI.Message.Chat
+import DingTalk.JS
 import DingTalk.Yesod
 import DingTalk.Misc

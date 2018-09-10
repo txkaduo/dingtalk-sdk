@@ -1,7 +1,6 @@
 module DingTalk.OAPI.Basic
   ( OapiError(..), OapiErrorOrPayload(..)
   , oapiGetAccessToken, oapiAccessTokenTTL
-  , JsapiTicketResp(..), oapiGetJsapiTicket
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
   , AuthOrgEntiies(..), AuthScopes(..), oapiGetAccessTokenScopes
   , oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
@@ -94,29 +93,6 @@ oapiGetAccessToken corp_id corp_secret = do
     , "corpsecret" &= corp_secret
     ]
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "access_token"))
--- }}}1
-
-
-data JsapiTicketResp = JsapiTicketResp
-  { jsapiTicketRespTicket :: JsapiTicket
-  , jsapiTicketRespExpiresIn :: Int
-  }
-
--- {{{1 instances
-instance FromJSON JsapiTicketResp where
-  parseJSON = withObject "JsapiTicketResp" $ \ o -> do
-    JsapiTicketResp <$> o .: "ticket"
-                    <*> o .: "expires_in"
--- }}}1
-
-
-oapiGetJsapiTicket :: HttpCallMonad env m
-                   => ReaderT AccessToken m (Either OapiError JsapiTicketResp)
--- {{{1
-oapiGetJsapiTicket = do
-  oapiGetCallWithAtk "/get_jsapi_ticket"
-    [ "type" &= asText "jsapi"
-    ]
 -- }}}1
 
 
