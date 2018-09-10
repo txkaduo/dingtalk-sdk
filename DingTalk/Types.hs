@@ -57,11 +57,29 @@ NEWTYPE_DEF_TEXT(SnsTmpAuthCode)
 NEWTYPE_DEF_TEXT(SnsToken)
 NEWTYPE_DEF_TEXT(DeviceId)
 NEWTYPE_DEF_TEXT(MediaId)
-NEWTYPE_DEF_TEXT(AgentId)
 NEWTYPE_DEF_TEXT(OpenId)
 NEWTYPE_DEF_TEXT(UnionId)
+NEWTYPE_DEF_TEXT(MessageId)
 NEWTYPE_DEF_TEXT(SnsPersistentAuthCode)
 
+
+NEWTYPE_DEF(AgentId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup \
+           , PersistField, PersistFieldSql \
+           , ToJSON, FromJSON \
+           )
+
+NEWTYPE_DEF(ChatId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup \
+           , PersistField, PersistFieldSql \
+           , ToJSON, FromJSON \
+           )
+
+NEWTYPE_DEF(CorpConversationAsyncSendId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup \
+           , PersistField, PersistFieldSql \
+           , ToJSON, FromJSON \
+           )
 
 
 NEWTYPE_DEF(RoleId, Int64)

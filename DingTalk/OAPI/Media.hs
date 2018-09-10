@@ -13,10 +13,6 @@ import           Network.HTTP.Client.MultipartFormData (partFileRequestBody)
 import           Network.Mime         (MimeType)
 import           Network.Wreq
 import qualified Network.Wreq.Session as WS
-import           Text.Parsec.TX.Utils (SimpleEncode (..), deriveJsonS,
-                                       derivePersistFieldS,
-                                       deriveSimpleStringRepEnumBounded)
-import           Yesod.Helpers.Parsec (derivePathPieceS)
 
 import DingTalk.Types
 import DingTalk.OAPI.Basic
@@ -30,18 +26,16 @@ data MediaType = MediaTypeImage
                deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1 instances
-$(derivePersistFieldS "MediaType")
-$(derivePathPieceS "MediaType")
-$(deriveJsonS "MediaType")
-$(deriveSimpleStringRepEnumBounded "MediaType")
-
-instance SimpleEncode MediaType where
-  simpleEncode MediaTypeImage = "image"
-  simpleEncode MediaTypeVoice = "voice"
-  simpleEncode MediaTypeFile  = "file"
-
 instance ParamValue MediaType where
-  toParamValue = fromString . simpleEncode
+  toParamValue MediaTypeImage = "image"
+  toParamValue MediaTypeVoice = "voice"
+  toParamValue MediaTypeFile  = "file"
+
+instance ToJSON MediaType where
+  toJSON = toJSON . toParamValue
+
+instance FromJSON MediaType where
+  parseJSON = withText "MediaType" $ maybe mzero return . parseEnumParamValueText
 -- }}}1
 
 

@@ -5,9 +5,8 @@ module DingTalk
   , module DingTalk.OAPI.Contacts
   , module DingTalk.OAPI.SNS
   , module DingTalk.OAPI.Media
-  , module DingTalk.ECO.Basic
-  , module DingTalk.ECO.Message.Types
-  , module DingTalk.ECO.Message.CorpConversation
+  , module DingTalk.OAPI.Message.Types
+  , module DingTalk.OAPI.Message.Chat
   , module DingTalk.Yesod
   , module DingTalk.Misc
   ) where
@@ -18,8 +17,7 @@ import DingTalk.OAPI.Contacts
 import DingTalk.OAPI.SNS
 import DingTalk.OAPI.Crypto
 import DingTalk.OAPI.Media
-import DingTalk.ECO.Basic
-import DingTalk.ECO.Message.Types
-import DingTalk.ECO.Message.CorpConversation
+import DingTalk.OAPI.Message.Types
+import DingTalk.OAPI.Message.Chat
 import DingTalk.Yesod
 import DingTalk.Misc

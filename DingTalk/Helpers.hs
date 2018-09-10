@@ -94,4 +94,9 @@ nullTextAsNothing mt =
            | otherwise -> pure $ Just t
     _ -> pure Nothing
 
+
+parseEnumParamValueText :: (ParamValue a, Enum a, Bounded a) => Text -> Maybe a
+parseEnumParamValueText = flip lookup table
+  where table = map (toParamValue &&& id) [minBound .. maxBound]
+
 -- vim: set foldmethod=marker:

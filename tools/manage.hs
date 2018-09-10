@@ -17,10 +17,8 @@ import           System.Log.FastLogger (LoggerSet, newStderrLoggerSet,
                                         pushLogStr)
 import           System.Exit
 
-import           Text.Parsec.TX.Utils  (SimpleStringRep,
-                                        parseMaybeSimpleEncoded, simpleEncode)
-
 import DingTalk
+import DingTalk.Helpers
 -- }}}1
 
 data ManageCmd = Scopes
@@ -72,7 +70,7 @@ manageCmdParser = subparser $
     )
   <> command "upload-media"
     (info (helper <*> ( UploadMedia
-                          <$> (argument (simpleEncodedStringReader "media type") (metavar "MEDIA_TYPE"))
+                          <$> (argument (enumStringReader "media type") (metavar "MEDIA_TYPE"))
                           <*> (argument str (metavar "FILE"))
                       )
           )
@@ -88,15 +86,15 @@ manageCmdParser = subparser $
 -- }}}1
 
 
-simpleEncodedStringReader :: SimpleStringRep a
-                          => String
-                          -> ReadM a
+enumStringReader :: (Enum a, Bounded a, ParamValue a)
+                 => String
+                 -> ReadM a
 -- {{{1
-simpleEncodedStringReader type_prompt = do
+enumStringReader type_prompt = do
   s <- str
   maybe (fail $ "cannot parse as " <> type_prompt <> ": " <> s)
         return
-        (parseMaybeSimpleEncoded s)
+        (parseEnumParamValueText $ fromString s)
 -- }}}1
 
 start :: (MonadLogger m, MonadCatch m, MonadIO m)
@@ -170,7 +168,7 @@ start opts api_env = flip runReaderT api_env $ do
           $logError $ "oapiUploadMedia failed: " <> tshow err
         Right (UploadMediaResp media_id media_type _created_time) -> do
           putStrLn $ "MediaId is: " <> unMediaId media_id
-          putStrLn $ "Types is: " <> fromString (simpleEncode media_type)
+          putStrLn $ "Types is: " <> toParamValue media_type
 
     DownloadMedia media_id -> do
       err_or_res <- flip runReaderT atk $ oapiDownloadMedia media_id
