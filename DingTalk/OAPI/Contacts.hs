@@ -1,7 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module DingTalk.OAPI.Contacts
   ( oapiGetDeptListIds
-  , DeptInfo(..), oapiGetDeptList
+  , DeptInfo(..), oapiGetSubDeptList
   , Role(..), UserDetails(..), oapiGetUserDetails
   , UserSimpleInfo(..), DeptUserSortOrder(..), oapiGetDeptUserSimpleList
   , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList
@@ -60,11 +60,11 @@ instance FromJSON DeptInfo where
 
 
 -- | 获取部门列表．
-oapiGetDeptList :: HttpCallMonad env m
-                => Bool
-                -> DeptId
-                -> ReaderT AccessToken m (Either OapiError [DeptInfo])
-oapiGetDeptList recursive parent_id =
+oapiGetSubDeptList :: HttpCallMonad env m
+                   => Bool
+                   -> DeptId
+                   -> ReaderT AccessToken m (Either OapiError [DeptInfo])
+oapiGetSubDeptList recursive parent_id =
   oapiGetCallWithAtk "/department/list"
     [ "id" &= parent_id
     , "fetch_child" &= recursive
@@ -77,10 +77,10 @@ oapiGetDeptSubForest :: HttpCallMonad env m
                      -> ReaderT AccessToken m (Either OapiError (Forest DeptInfo))
 -- {{{1
 oapiGetDeptSubForest parent_id = runExceptT $ do
-  ExceptT (oapiGetDeptList False parent_id) >>= mapM get_tree
+  ExceptT (oapiGetSubDeptList False parent_id) >>= mapM get_tree
   where
     get_tree p_dept_info = do
-      sub_forest <- ExceptT (oapiGetDeptList False (deptInfoId p_dept_info))
+      sub_forest <- ExceptT (oapiGetSubDeptList False (deptInfoId p_dept_info))
                       >>= mapM get_tree
       return $ Node p_dept_info sub_forest
 -- }}}1
@@ -204,8 +204,8 @@ oapiSourceDeptUserSimpleInfoRecursive :: HttpCallMonad env m
                                       => DeptId
                                       -> Source (ExceptT OapiError (ReaderT AccessToken m)) UserSimpleInfo
 oapiSourceDeptUserSimpleInfoRecursive dept_id = do
-  dept_info_list <- lift $ ExceptT $ oapiGetDeptList True dept_id
-  mconcat (map (oapiSourceDeptUserSimpleInfo Nothing . deptInfoId) dept_info_list)
+  sub_dept_ids <- fmap (map deptInfoId) $ lift $ ExceptT $ oapiGetSubDeptList True dept_id
+  mconcat (map (oapiSourceDeptUserSimpleInfo Nothing) $ dept_id : sub_dept_ids)
 
 
 data Role = Role
