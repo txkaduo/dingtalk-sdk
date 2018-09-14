@@ -7,6 +7,7 @@ module DingTalk
   , module DingTalk.OAPI.Media
   , module DingTalk.OAPI.Message.Types
   , module DingTalk.OAPI.Message.Chat
+  , module DingTalk.OAPI.Message.CorpConversation
   , module DingTalk.JS
   , module DingTalk.Yesod
   , module DingTalk.Misc
@@ -23,3 +24,4 @@ import DingTalk.OAPI.Message.Chat
 import DingTalk.JS
 import DingTalk.Yesod
 import DingTalk.Misc
+import DingTalk.OAPI.Message.CorpConversation

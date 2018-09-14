@@ -5,14 +5,12 @@ import           ClassyPrelude
 import           Control.Exception          (evaluate)
 import qualified Crypto.Hash.SHA1           as SHA1
 import qualified Data.ByteString.Base16     as B16
-import qualified Data.ByteString.Base64.URL as B64L
-import qualified Data.ByteString.Char8      as C8
 import qualified Data.Text                  as T
 import           Data.Time.Clock.POSIX
 import           Network.HTTP               (urlDecode)
-import           System.Random              (randomIO)
 
 import DingTalk.Types
+import DingTalk.Helpers
 -- }}}1
 
 
@@ -21,11 +19,7 @@ oapiMakeNonce :: MonadIO m
               => Int
               -> m Nonce
 -- {{{1
-oapiMakeNonce salt_len = liftIO $ do
-  liftM (Nonce . fromString . C8.unpack . take salt_len . B64L.encode . pack) $
-      replicateM gen_len randomIO
-  where gen_len = salt_len  -- long enough
--- }}}1
+oapiMakeNonce = fmap (Nonce . fromString) . oapiMakeString
 
 
 oapiSignParams :: [(Text, Text)] -> Text
