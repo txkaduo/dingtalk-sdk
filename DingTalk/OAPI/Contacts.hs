@@ -21,6 +21,7 @@ import           Data.Conduit
 import           Data.Tree
 import           Data.Proxy
 import           Data.Time.Clock.POSIX
+import           Text.Show.Unicode (ushow)
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
@@ -218,7 +219,9 @@ data Role = Role
 -- {{{1 instances
 instance Show Role where
   show (Role xid name grp_name) =
-    intercalate " " [ "Role", show xid, unpack name, unpack grp_name ]
+    "Role {"
+      <> intercalate ", " [  "id=" <> show xid, "name=" <> ushow name, "groupName=" <> ushow grp_name ]
+      <> " }"
 
 instance FromJSON Role where
   parseJSON = withObject "Role" $ \ o ->

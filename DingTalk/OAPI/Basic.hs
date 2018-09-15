@@ -22,6 +22,7 @@ import           Data.Proxy
 import           Network.Wreq hiding (Proxy)
 import           Network.Wreq.Types   (Postable)
 import qualified Network.Wreq.Session as WS
+import           Text.Show.Unicode (ushow)
 
 import DingTalk.Types
 import DingTalk.Helpers
@@ -35,7 +36,10 @@ data OapiError = OapiError
 
 -- {{{1 instances
 instance Show OapiError where
-  show (OapiError c m) = intercalate " " [ "OapiError", show c, unpack m ]
+  show (OapiError c m) =
+    "OapiError { "
+      <> intercalate ", " [ "errcode=" <> show c, "errmsg=" <> ushow m ]
+      <> " }"
 
 instance FromJSON OapiError where
   parseJSON = withObject "OapiError" $ \ o ->

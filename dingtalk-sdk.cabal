@@ -67,6 +67,8 @@ library
                      , binary
                      , time
                      , hedis
+                     , unicode-show
+
 
   default-language:    Haskell2010
 
