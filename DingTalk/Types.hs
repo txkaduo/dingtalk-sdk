@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# OPTIONS_GHC -pgmP cc -optP -E -optP -undef -optP -std=c89 #-}
 -- 上面这个命令行是为了使用 ## 这样的CPP操作符. ghc ticket 12516
 module DingTalk.Types where
 
