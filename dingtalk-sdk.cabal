@@ -100,7 +100,8 @@ library
   if flag(dev)
       cpp-options:   -DDEVELOPMENT
       -- ghc-options:   -O0 +RTS -A128m -n2m -RTS
-      -- 不知道为什么上面的ghc-options会引起 haddock 错误
+      -- haddock 目前不支付解释RTS选项，等haddock新版直接过滤掉RTS选项后就可以用以上选项
+      -- see: haddock issue #725
   else
       ghc-options:   -O
 

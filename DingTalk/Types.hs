@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# OPTIONS_GHC -pgmP cc -optP -E -optP -undef -optP -std=c89 #-}
 -- 上面这个命令行是为了使用 ## 这样的CPP操作符. ghc ticket 12516
 module DingTalk.Types where
 
@@ -64,34 +63,34 @@ NEWTYPE_DEF_TEXT(SnsPersistentAuthCode)
 
 
 NEWTYPE_DEF(AgentId, Int64)
-  deriving (Show, Eq, Ord, Typeable, ToMarkup \
-           , PersistField, PersistFieldSql \
-           , ToJSON, FromJSON \
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           , ToJSON, FromJSON
            )
 
 NEWTYPE_DEF(ChatId, Int64)
-  deriving (Show, Eq, Ord, Typeable, ToMarkup \
-           , PersistField, PersistFieldSql \
-           , ToJSON, FromJSON \
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           , ToJSON, FromJSON
            )
 
 NEWTYPE_DEF(CorpConversationAsyncSendId, Int64)
-  deriving (Show, Eq, Ord, Typeable, ToMarkup \
-           , PersistField, PersistFieldSql \
-           , ToJSON, FromJSON \
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           , ToJSON, FromJSON
            )
 
 
 NEWTYPE_DEF(RoleId, Int64)
-  deriving (Show, Eq, Ord, Typeable, ToMarkup \
-           , PersistField, PersistFieldSql \
-           , ToJSON, FromJSON \
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           , ToJSON, FromJSON
            )
 
 NEWTYPE_DEF(DeptId, Int64)
-  deriving (Show, Eq, Ord, Typeable, ToMarkup \
-           , PersistField, PersistFieldSql \
-           , ToJSON, FromJSON \
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           , ToJSON, FromJSON
            )
 
 -- | 根部门代表的就是整个企业
