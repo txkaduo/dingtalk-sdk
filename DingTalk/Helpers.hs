@@ -11,9 +11,10 @@ import qualified Data.Aeson.Text      as A
 import qualified Data.Aeson.Types     as A
 import qualified Data.ByteString.Base64.URL as B64L
 import qualified Data.ByteString.Char8      as C8
+import           Data.List            ((!!))
 import qualified Data.Text            as T
 import           Network.Wreq hiding (Proxy)
-import           System.Random              (randomIO)
+import           System.Random              (randomIO, randomRIO)
 
 import DingTalk.Types
 -- }}}1
@@ -113,5 +114,15 @@ oapiMakeString salt_len = liftIO $ do
       replicateM gen_len randomIO
   where gen_len = salt_len  -- long enough
 -- }}}1
+
+
+randomAlphaNumString :: MonadIO m
+                     => Int
+                     -> m String
+randomAlphaNumString len = do
+  liftIO $ replicateM len $ fmap (chars !!) $ randomRIO (0, chars_len)
+  where chars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']
+        chars_len = length chars
+
 
 -- vim: set foldmethod=marker:
