@@ -10,9 +10,11 @@ import           System.Random (randomRIO)
 
 import           DingTalk.Types
 import           DingTalk.OAPI.Basic
+import           DingTalk.OAPI.Callback
 import           DingTalk.OAPI.Contacts
+import           DingTalk.OAPI.Crypto
 import           DingTalk.OAPI.SNS
-import           DingTalk.Misc (httpUserAgentDingTalkVer)
+import           DingTalk.Misc
 -- }}}1
 
 
@@ -173,6 +175,30 @@ handlerDingTalkLoginComeBack show_widget = do
       current_route <- getCurrentRoute >>= maybe (error "no current route") return
       let return_url = render_url current_route params
       handlerDingTalkLoginUrl return_url
+-- }}}1
+
+
+handleDingTalkCallback :: (MonadHandler m, MonadLogger m)
+                       => DingTalkAesEnv
+                       -> CallbackToken
+                       -> [ (CallbackEventInput -> m ()) ]
+                       -> m Value
+-- {{{1
+handleDingTalkCallback aes_env token cb_handlers = do
+  body_jv <- requireJsonBody
+  case decryptCallbackPostBody aes_env body_jv of
+    Left err -> do
+      $logErrorS logSourceName $ "Failed to parse callback post body: " <> fromString err
+      invalidArgs ["POST Body"]
+
+    Right cb_input -> do
+      let event_tag = cbEventInputTag cb_input
+      unless (isKnownCallbackTag event_tag) $ do
+        $logErrorS logSourceName $ "Unknown callback event type: " <> event_tag
+
+      sequence_ $ map ($ cb_input) cb_handlers
+      let corp_or_suite = rawTextToCorpIdOrSuiteKey $ cbEventInputCorpOrSuiteKey cb_input
+      mkCallbackRespose aes_env token corp_or_suite
 -- }}}1
 
 

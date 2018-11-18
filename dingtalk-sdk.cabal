@@ -24,6 +24,7 @@ library
   exposed-modules:     DingTalk.Types
                        DingTalk.Helpers
                        DingTalk.OAPI.Basic
+                       DingTalk.OAPI.Callback
                        DingTalk.OAPI.Contacts
                        DingTalk.OAPI.SNS
                        DingTalk.OAPI.Crypto
@@ -59,7 +60,6 @@ library
                      , base16-bytestring
                      , conduit
                      , random
-                     , cryptohash
                      , HTTP
                      , http-client
                      , http-types
@@ -68,6 +68,7 @@ library
                      , time
                      , hedis
                      , unicode-show
+                     , cryptonite
 
 
   default-language:    Haskell2010

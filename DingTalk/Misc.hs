@@ -3,6 +3,8 @@ module DingTalk.Misc where
 -- {{{1 imports
 import ClassyPrelude
 import qualified Data.Text            as T
+
+import DingTalk.Types
 -- }}}1
 
 
@@ -19,6 +21,12 @@ httpUserAgentDingTalkVer ua = do
     (_, s1) = T.breakOn p ua
 -- }}}1
 
+
+rawTextToCorpIdOrSuiteKey :: Text -> Either CorpId SuiteKey
+rawTextToCorpIdOrSuiteKey t =
+  if "corp" `isPrefixOf` t
+     then Left $ CorpId t
+     else Right $ SuiteKey t
 
 
 

@@ -46,6 +46,7 @@ instance ParamValue SomeParamValue where
 
 NEWTYPE_DEF_TEXT(AccessToken)
 NEWTYPE_DEF_TEXT(SnsAccessToken)
+NEWTYPE_DEF_TEXT(SuiteKey)
 NEWTYPE_DEF_TEXT(CorpId)
 NEWTYPE_DEF_TEXT(CorpSecret)
 NEWTYPE_DEF_TEXT(JsApiTicket)
@@ -61,6 +62,13 @@ NEWTYPE_DEF_TEXT(OpenId)
 NEWTYPE_DEF_TEXT(UnionId)
 NEWTYPE_DEF_TEXT(MessageId)
 NEWTYPE_DEF_TEXT(SnsPersistentAuthCode)
+
+-- CallbackToken 是回调接口用的 Token
+NEWTYPE_DEF_TEXT(CallbackToken)
+
+NEWTYPE_DEF_TEXT(EncodingAesKey)
+NEWTYPE_DEF_TEXT(ProcessInstanceId)
+NEWTYPE_DEF_TEXT(BizCategoryId)
 
 
 NEWTYPE_DEF(AgentId, Int64)
