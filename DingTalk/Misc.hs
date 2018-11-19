@@ -24,7 +24,7 @@ httpUserAgentDingTalkVer ua = do
 
 rawTextToCorpIdOrSuiteKey :: Text -> Either CorpId SuiteKey
 rawTextToCorpIdOrSuiteKey t =
-  if "corp" `isPrefixOf` t
+  if "ding" `isPrefixOf` t || "corp" `isPrefixOf` t
      then Left $ CorpId t
      else Right $ SuiteKey t
 
