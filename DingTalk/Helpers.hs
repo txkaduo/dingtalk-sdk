@@ -15,9 +15,26 @@ import           Data.List            ((!!))
 import qualified Data.Text            as T
 import           Network.Wreq hiding (Proxy)
 import           System.Random              (randomIO, randomRIO)
-
-import DingTalk.Types
 -- }}}1
+
+
+class ParamValue a where
+  toParamValue :: a -> Text
+
+instance ParamValue Text where
+  toParamValue = id
+
+instance ParamValue Bool where
+  toParamValue = bool "false" "true"
+
+instance ParamValue Int where toParamValue = tshow
+
+
+data SomeParamValue = forall a. ParamValue a => SomeParamValue a
+
+instance ParamValue SomeParamValue where
+  toParamValue (SomeParamValue v) = toParamValue v
+
 
 
 (&=) :: ParamValue a => Text -> a -> (Text, SomeParamValue)
@@ -77,13 +94,27 @@ getJsonFieldMay jv field = do
 -- }}}1
 
 
+aesonParseSepText :: Text -> (Text -> A.Parser a) -> Text -> A.Parser [a]
+aesonParseSepText sep f t =
+  mapM f $ filter (not . null) $ T.splitOn sep t
+
+
+aesonParseSepTextOrList :: A.FromJSON a => Text -> (Text -> A.Parser a) -> A.Value -> A.Parser [a]
+aesonParseSepTextOrList sep f (A.String t) = aesonParseSepText sep f t
+aesonParseSepTextOrList _ _ v = A.parseJSON v
+
+
 aesonParseBarSepText :: (Text -> A.Parser a) -> Text -> A.Parser [a]
-aesonParseBarSepText f t =
-  mapM f $ filter (not . null) $ T.splitOn "|" t
+aesonParseBarSepText = aesonParseSepText "|"
+
 
 aesonParseBarSepNested :: forall a. A.FromJSON a => Text -> A.Parser [a]
-aesonParseBarSepNested t =
-  mapM p_t $ filter (not . null) $ T.splitOn "|" t
+aesonParseBarSepNested = aesonParseSepNested "|"
+
+
+aesonParseSepNested :: forall a. A.FromJSON a => Text -> Text -> A.Parser [a]
+aesonParseSepNested sep t =
+  mapM p_t $ filter (not . null) $ T.splitOn sep t
   where
     p_t :: Text -> A.Parser a
     p_t s = case A.eitherDecode (fromStrict $ encodeUtf8 s) of
@@ -102,6 +133,11 @@ nullTextAsNothing mt =
 parseEnumParamValueText :: (ParamValue a, Enum a, Bounded a) => Text -> Maybe a
 parseEnumParamValueText = flip lookup table
   where table = map (toParamValue &&& id) [minBound .. maxBound]
+
+
+parseJsonParamValueEnumBounded :: (ParamValue a, Enum a, Bounded a) => String -> A.Value -> A.Parser a
+parseJsonParamValueEnumBounded name = A.withText name $ \ t -> do
+  maybe (fail $ "unknown value string: " <> unpack t) return $ parseEnumParamValueText t
 
 
 -- | 生成随机字串: 字串使用base64相同的字符集
@@ -123,6 +159,15 @@ randomAlphaNumString len = do
   liftIO $ replicateM len $ fmap (chars !!) $ randomRIO (0, chars_len)
   where chars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']
         chars_len = length chars
+
+
+data DatagramError = DatagramError String
+  deriving (Show)
+
+instance Exception DatagramError
+
+logSourceName :: Text
+logSourceName = "dingtalk-sdk"
 
 
 -- vim: set foldmethod=marker:

@@ -14,6 +14,7 @@ import           DingTalk.OAPI.Callback
 import           DingTalk.OAPI.Contacts
 import           DingTalk.OAPI.Crypto
 import           DingTalk.OAPI.SNS
+import           DingTalk.Helpers
 import           DingTalk.Misc
 -- }}}1
 

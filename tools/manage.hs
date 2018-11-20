@@ -5,9 +5,12 @@ import           ClassyPrelude
 import           Control.Lens         hiding ((.=), argument)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
+import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Lazy as LB
-import           Data.Conduit (($$), (=$=))
+import           Data.Conduit
 import qualified Data.Conduit.List as CL
+import           Data.List.NonEmpty (nonEmpty)
+import           Data.Time.Clock.POSIX
 import           Network.HTTP.Client   (streamFile)
 import           Network.Wreq         (responseBody, responseHeader)
 import qualified Network.Wreq.Session  as WS
@@ -27,6 +30,11 @@ data ManageCmd = Scopes
                | ShowDeptDetails DeptId
                | UploadMedia MediaType FilePath
                | DownloadMedia MediaId
+               | SearchProcess (Maybe Text)
+               | ListProcessInstId ProcessCode Int (Maybe UserId)
+               | ShowProcessInst ProcessInstanceId
+               | ShowUserProcessToDo UserId
+               | StartProcess ProcessCode UserId (Maybe DeptId) [UserId]
                deriving (Show)
 
 data Options = Options
@@ -82,6 +90,41 @@ manageCmdParser = subparser $
                       )
           )
           (progDesc "下载media_id对应的文件, 内容直接从 stdout 输出")
+    )
+  <> command "search-process"
+    (info (helper <*> ( SearchProcess
+                          <$> optional (fromString <$> argument str (metavar "TITLE"))
+                      )
+          )
+          (progDesc "查找审批流程")
+    )
+  <> command "list-process-inst-id"
+    (info (helper <*> ( ListProcessInstId
+                          <$> (ProcessCode . fromString <$> argument str (metavar "PROCESS_CODE"))
+                          <*> argument auto (metavar "SECONDS")
+                          <*> optional (UserId . fromString <$> argument str (metavar "USER_ID"))
+                      )
+          )
+          (progDesc "列出审批实例id")
+    )
+  <> command "show-process-inst"
+    (info (helper <*> ( ShowProcessInst
+                          <$> (ProcessInstanceId . fromString <$> argument str (metavar "PROCESS_INSTANCE_ID"))
+                      )
+          )
+          (progDesc "显示审批实例信息")
+    )
+  <> command "show-process-todo"
+    (info (helper <*> (pure ShowUserProcessToDo <*> fmap UserId (argument str (metavar "USER_ID"))))
+          (progDesc "显示用户待审批数量")
+    )
+  <> command "start-process"
+    (info (helper <*> (pure StartProcess <*> fmap ProcessCode (argument str (metavar "PROCESS_CODE"))
+                                         <*> fmap UserId (argument str (metavar "USER_ID"))
+                                         <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))
+                                         <*> some (UserId . fromString <$> strOption (long "approver" <> short 'A' <> metavar "APPROVER_USER"))
+                      ))
+          (progDesc "发起一个审批，仅用于测试")
     )
 -- }}}1
 
@@ -140,6 +183,8 @@ start opts api_env = flip runReaderT api_env $ do
             putStrLn $ "User Id: " <> unUserId (userDetailsUserId user_details)
             putStrLn $ "User Name: " <> userDetailsName user_details
             putStrLn $ "User Roles: " <> tshow (userDetailsRoles user_details)
+            putStrLn $ "User Hire Date: " <> tshow (userDetailsHiredTime user_details)
+            putStrLn $ "Dept Ids: " <> tshow (userDetailsDepartments user_details)
 
     ShowDeptDetails dept_id -> do
       err_or_res <- flip runReaderT atk $ oapiGetDeptDetails dept_id
@@ -179,6 +224,130 @@ start opts api_env = flip runReaderT api_env $ do
         Right resp -> do
           liftIO $ hPutStrLn stderr $ "Content-Type: " <> unpack (decodeUtf8 (resp ^. responseHeader "Content-Type"))
           liftIO $ LB.putStr $ resp ^. responseBody
+
+    SearchProcess m_txt -> do
+      let filter_conduit = case m_txt of
+                             Nothing -> awaitForever yield
+                             Just txt -> CL.filter (isInfixOf txt . processInfoName)
+
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+                      oapiSourceProcessListByUser Nothing
+                        =$= filter_conduit
+                        $$ CL.consume
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiSourceProcessListByUser failed: " <> tshow err
+
+        Right proc_infos -> do
+          forM_ proc_infos $ \ proc_info -> do
+            putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
+
+    ListProcessInstId proc_code seconds m_user_id -> do
+      now <- liftIO getPOSIXTime
+      let start_time = timestampFromPOSIXTime $ now - fromIntegral seconds
+
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+                      oapiSourceProcessInstId proc_code start_time Nothing (fmap pure m_user_id)
+                        $$ CL.consume
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiSourceProcessListByUser failed: " <> tshow err
+
+        Right proc_ids -> do
+          forM_ proc_ids $ \ proc_id -> do
+            putStrLn $ unProcessInstanceId proc_id
+
+    ShowProcessInst proc_inst_id -> do
+      err_or_res <- flip runReaderT atk $ oapiGetProcessInstanceInfo proc_inst_id
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiSourceProcessListByUser failed: " <> tshow err
+
+        Right (ProcessInstInfo {..}) -> do
+          putStrLn $ "Process Instance Info"
+          putStrLn $ "====================="
+          putStrLn $ "Title: " <> processInstInfoTitle
+          putStrLn $ "Create Time: " <> tshow processInstInfoCreateTime
+          putStrLn $ "Finish Time: " <> tshow processInstInfoFinishTime
+
+          putStr "Operation Records:"
+          if null processInstInfoOpRecords
+             then putStrLn " (empty)"
+             else do
+                  putStrLn ""
+                  putStrLn "------------------"
+
+                  forM_ processInstInfoOpRecords $ \ (ProcessOpRecord {..}) -> do
+                    putStrLn $ "Time: " <> tshow processOpTime
+                    putStrLn $ "User Id: " <> toParamValue processOpUserId
+                    putStrLn $ "Type: " <> toParamValue processOpType
+                    putStrLn $ "Result: " <> toParamValue processOpResult
+                    putStrLn $ "Remarks: " <> fromMaybe "" processOpRemark
+                    putStrLn ""
+
+
+          putStr "Tasks:"
+          if null processInstInfoTasks
+             then putStrLn " (empty)"
+             else do
+                  putStrLn ""
+                  putStrLn "------"
+
+                  forM_ processInstInfoTasks $ \ (ProcessTaskInfo {..}) -> do
+                    putStrLn $ "Id: " <> toParamValue processTaskInfoId
+                    putStrLn $ "Create Time: " <> tshow processTaskInfoCreateTime
+                    putStrLn $ "Finish Time: " <> tshow processTaskInfoFinishTime
+                    putStrLn $ "User Id: " <> toParamValue processTaskInfoUserId
+                    putStrLn $ "Status: " <> toParamValue processTaskInfoStatus
+                    putStrLn $ "Result: " <> toParamValue processTaskInfoResult
+                    putStrLn ""
+
+
+    ShowUserProcessToDo user_id -> do
+      err_or_res <- flip runReaderT atk $ oapiGetUserProcessInstanceToDo user_id
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiGetUserProcessInstanceToDo failed: " <> tshow err
+
+        Right cnt -> putStrLn $ tshow cnt
+
+
+    StartProcess proc_code user_id m_dept_id approvers0 -> do
+      approvers <- maybe (fail "审批人不能为空") return (nonEmpty approvers0)
+      let inputs = [ ("输入一", FormCompValueText "这是文字")
+                   , ("多行输入", FormCompValueText "这是文字\n又多一行")
+                   , ("图片", FormCompValueImages (pure (Left "https://img.alicdn.com/tfs/TB1vxZHoGmWBuNjy1XaXXXCbXXa-180-32.png")))
+                   , ("明细", FormCompValueDetails
+                                (pure
+                                  (
+                                    mapFromList [ ("明细输入一", FormCompValueText "啦啦")
+                                                , ("明细输入二", FormCompValueText "呵呵")
+                                                ]
+                                  )
+                                )
+                      )
+                   ]
+
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+                      dept_id <- case m_dept_id of
+                                   Just x -> return x
+                                   Nothing -> do
+                                     -- 随便选一个部门
+                                     fmap (fmap userDetailsDepartments) (ExceptT $ oapiGetUserDetails user_id)
+                                        >>= maybe (fail "user not found") return
+                                        >>= maybe (fail "user does not belong to any dept") return . listToMaybe
+
+                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id approvers Nothing (mapFromList inputs)
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "Some API failed: " <> tshow err
+
+        Right proc_inst_id -> putStrLn $ "Process Instance Id: " <> toParamValue proc_inst_id
 
   where
     corp_id = optCorpId opts

@@ -7,7 +7,6 @@ import           Control.Monad.Logger
 import           Control.Monad.Trans.Except
 import           Data.Aeson           as A
 import qualified Data.Aeson.Types     as A
-import           Data.Time.Clock.POSIX
 import qualified Database.Redis as R
 
 import DingTalk.Types
@@ -107,7 +106,7 @@ redisGetOrUpdateJsApiTicket conn (lock_key, save_key) max_seconds = do
 jsapiConfigOptions :: CorpId
                    -> JsApiTicket
                    -> AgentId
-                   -> POSIXTime
+                   -> Timestamp
                    -> Nonce
                    -> Text
                    -> [Text]
@@ -116,7 +115,7 @@ jsapiConfigOptions :: CorpId
 jsapiConfigOptions corp_id ticket agent_id t nonce url api_list =
   [ "corpId" .= corp_id
   , "agentId" .= agent_id
-  , "timeStamp" .= tshow (round t :: Int64)
+  , "timeStamp" .= t
   , "nonceStr" .= nonce
   , "signature" .= signature
   , "jsApiList" .= api_list

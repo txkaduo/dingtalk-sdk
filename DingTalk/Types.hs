@@ -1,36 +1,24 @@
 {-# LANGUAGE CPP #-}
 {-# OPTIONS_GHC -pgmP cc -optP -E -optP -undef -optP -std=c89 #-}
 -- 上面这个命令行是为了使用 ## 这样的CPP操作符. ghc ticket 12516
-module DingTalk.Types where
+module DingTalk.Types
+  ( module DingTalk.Types
+  , ParamValue(..), SomeParamValue(..)
+  , DatagramError(..)
+  ) where
 
 -- {{{1 imports
 import           ClassyPrelude
 import           Control.Monad.Logger
-import           Data.Aeson            (FromJSON, ToJSON)
+import           Data.Aeson as A
+import           Data.Time.Clock.POSIX
 import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 import qualified Network.Wreq.Session  as WS
 import           Text.Blaze.Html       (ToMarkup (..))
 import           Text.Shakespeare.I18N (ToMessage (..))
+
+import DingTalk.Helpers
 -- }}}1
-
-
-class ParamValue a where
-  toParamValue :: a -> Text
-
-instance ParamValue Text where
-  toParamValue = id
-
-instance ParamValue Bool where
-  toParamValue = bool "false" "true"
-
-instance ParamValue Int where toParamValue = tshow
-
-
-data SomeParamValue = forall a. ParamValue a => SomeParamValue a
-
-instance ParamValue SomeParamValue where
-  toParamValue (SomeParamValue v) = toParamValue v
-
 
 
 #define NEWTYPE_TEXT_DERIVING \
@@ -67,8 +55,14 @@ NEWTYPE_DEF_TEXT(SnsPersistentAuthCode)
 NEWTYPE_DEF_TEXT(CallbackToken)
 
 NEWTYPE_DEF_TEXT(EncodingAesKey)
+NEWTYPE_DEF_TEXT(ProcessCode)
 NEWTYPE_DEF_TEXT(ProcessInstanceId)
 NEWTYPE_DEF_TEXT(BizCategoryId)
+
+-- | 审批实例业务编号. 含义不明，仅见于 "获取单个审批实例" 接口文档
+NEWTYPE_DEF_TEXT(ProcessBizId)
+
+NEWTYPE_DEF_TEXT(ProcessTaskId)
 
 
 NEWTYPE_DEF(AgentId, Int64)
@@ -99,8 +93,25 @@ NEWTYPE_DEF(RoleId, Int64)
 NEWTYPE_DEF(DeptId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
-           , ToJSON, FromJSON
            )
+
+
+data ProcessInstResult = ProcessApproved | ProcessDenied | ProcessRedirect
+  deriving (Show, Eq, Ord, Enum, Bounded)
+
+-- {{{1 instances
+instance ParamValue ProcessInstResult where
+  toParamValue ProcessApproved = "agree"
+  toParamValue ProcessDenied   = "refuse"
+  toParamValue ProcessRedirect = "redirect"
+
+instance ToJSON ProcessInstResult where
+  toJSON = toJSON . toParamValue
+
+instance FromJSON ProcessInstResult where
+  parseJSON = parseJsonParamValueEnumBounded "ProcessInstResult"
+-- }}}1
+
 
 -- | 根部门代表的就是整个企业
 rootDeptId :: DeptId
@@ -108,6 +119,12 @@ rootDeptId = DeptId 1
 
 instance ParamValue DeptId where
   toParamValue = tshow . unDeptId
+
+instance ToJSON DeptId where toJSON = toJSON . unDeptId
+
+instance FromJSON DeptId where
+  parseJSON (A.String s) = maybe mzero (return . DeptId) $ readMay s
+  parseJSON v = fmap DeptId $ parseJSON v
 
 
 class HasAccessToken a where
@@ -128,17 +145,42 @@ class HasDingTalkLoginAppId a where
   getDingTalkLoginAppId :: a -> SnsAppId
 
 
-data DatagramError = DatagramError String
-  deriving (Show)
-
-instance Exception DatagramError
-
 type HttpCallMonad r m = (MonadIO m, MonadLogger m, MonadThrow m
                          , MonadReader r m
                          , HasWreqSession r
                          )
 
-logSourceName :: Text
-logSourceName = "dingtalk-sdk"
+
+-- | 估计所有钉钉的时间戳都是以毫秒为单位
+newtype Timestamp = Timestamp { unTimestamp :: Int64 }
+  deriving (Eq, Ord, Num)
+
+-- {{{1
+instance ParamValue Timestamp where
+  toParamValue = tshow . unTimestamp
+
+instance ToJSON Timestamp where toJSON = toJSON . unTimestamp
+
+instance FromJSON Timestamp where
+  -- 报文中，数字经常以字串的形式出现
+  parseJSON (A.String s) = maybe mzero (return . Timestamp) $ readMay s
+  parseJSON v = fmap Timestamp $ parseJSON v
+
+instance Show Timestamp where show = showTimeStamp
+-- }}}1
+
+
+timestampFromPOSIXTime :: POSIXTime -> Timestamp
+timestampFromPOSIXTime = Timestamp . round . (* 1000)
+
+
+timestampToPOSIXTime :: Timestamp -> POSIXTime
+timestampToPOSIXTime = (/ 1000) . fromIntegral . unTimestamp
+
+
+showTimeStamp :: Timestamp -> String
+showTimeStamp ts = show (posixSecondsToUTCTime ept)
+  where ept = timestampToPOSIXTime ts
+
 
 -- vim: set foldmethod=marker:

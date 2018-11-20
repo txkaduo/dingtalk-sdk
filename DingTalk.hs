@@ -8,6 +8,7 @@ module DingTalk
   , module DingTalk.OAPI.Message.Types
   , module DingTalk.OAPI.Message.Chat
   , module DingTalk.OAPI.Message.CorpConversation
+  , module DingTalk.OAPI.Process
   , module DingTalk.JS
   , module DingTalk.Yesod
   , module DingTalk.Misc
@@ -25,3 +26,4 @@ import DingTalk.JS
 import DingTalk.Yesod
 import DingTalk.Misc
 import DingTalk.OAPI.Message.CorpConversation
+import DingTalk.OAPI.Process

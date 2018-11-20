@@ -7,7 +7,6 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader (asks)
 import           Data.Aeson           as A
 import qualified Data.ByteString.Lazy as LB
-import           Data.Time.Clock.POSIX
 import           Network.HTTP.Client  (RequestBody)
 import           Network.HTTP.Client.MultipartFormData (partFileRequestBody)
 import           Network.Mime         (MimeType)
@@ -35,7 +34,7 @@ instance ToJSON MediaType where
   toJSON = toJSON . toParamValue
 
 instance FromJSON MediaType where
-  parseJSON = withText "MediaType" $ maybe mzero return . parseEnumParamValueText
+  parseJSON = parseJsonParamValueEnumBounded "MediaType"
 -- }}}1
 
 
@@ -43,14 +42,14 @@ data UploadMediaResp =
   UploadMediaResp
     MediaId
     MediaType
-    POSIXTime
+    Timestamp
 
 -- {{{1
 instance FromJSON UploadMediaResp where
   parseJSON = withObject "UploadMediaResp" $ \ o -> do
     UploadMediaResp <$> o .: "media_id"
                     <*> o .: "type"
-                    <*> ((fromIntegral :: Int64 -> POSIXTime) <$> o .: "created_at")
+                    <*> o .: "created_at"
 -- }}}1
 
 

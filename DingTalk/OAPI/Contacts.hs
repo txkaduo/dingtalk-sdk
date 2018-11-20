@@ -20,7 +20,6 @@ import qualified Data.Aeson.Extra     as AE
 import           Data.Conduit
 import           Data.Tree
 import           Data.Proxy
-import           Data.Time.Clock.POSIX
 import           Text.Show.Unicode (ushow)
 
 import DingTalk.OAPI.Basic
@@ -233,7 +232,6 @@ instance FromJSON Role where
 
 data UserDetails = UserDetails
   { userDetailsUserId      :: UserId
-  , userDetailsOpenId      :: OpenId
   , userDetailsUnionId     :: UnionId
   , userDetailsName        :: Text
   , userDetailsMobile      :: Maybe Text
@@ -244,7 +242,7 @@ data UserDetails = UserDetails
   , userDetailsIsSenior    :: Bool
   , userDetailsDepartments :: [DeptId]
   , userDetailsAvatar      :: Maybe Text
-  , userDetailsHiredTime   :: Maybe POSIXTime
+  , userDetailsHiredTime   :: Maybe Timestamp
   , userDetailsRoles       :: [Role]
   -- XXX: 还有许多字段没有反映在这个类型里
   }
@@ -253,7 +251,6 @@ data UserDetails = UserDetails
 instance FromJSON UserDetails where
   parseJSON = withObject "UserDetails" $ \ o ->
                 UserDetails <$> o .: "userid"
-                            <*> o .: "openId"
                             <*> o .: "unionid"
                             <*> o .: "name"
                             <*> (o .:? "mobile" >>= nullTextAsNothing)

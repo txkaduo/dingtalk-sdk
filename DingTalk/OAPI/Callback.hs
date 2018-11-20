@@ -3,7 +3,6 @@ module DingTalk.OAPI.Callback
   , SomeCallbackEvent(..)
   , allKnownCallbackEvents, isKnownCallbackTag
   , parseCallbackDataJson
-  , ApprovalResult(..)
   , GenericCallbackEvent(..)
   , CheckUrl(..)
   , ProcessInstanceChangeData(..), ProcessInstanceChange(..)
@@ -24,7 +23,6 @@ import           Data.Time.Clock.POSIX
 
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Crypto
-import DingTalk.Helpers
 -- }}}1
 
 
@@ -71,23 +69,6 @@ instance CallbackEvent CheckUrl where
   type CallbackData CheckUrl = ()
 
 
-data ApprovalResult = Approved | Denied | Redirect
-  deriving (Show, Eq, Ord, Enum, Bounded)
-
--- {{{1 instances
-instance ParamValue ApprovalResult where
-  toParamValue Approved = "agree"
-  toParamValue Denied   = "refuse"
-  toParamValue Redirect = "redirect"
-
-instance ToJSON ApprovalResult where
-  toJSON = toJSON . toParamValue
-
-instance FromJSON ApprovalResult where
-  parseJSON = withText "ApprovalResult" $ maybe mzero return . parseEnumParamValueText
--- }}}1
-
-
 -- | 审批实例开始，结束
 data ProcessInstanceChangeData =
       ProcessInstanceStartData
@@ -97,7 +78,7 @@ data ProcessInstanceChangeData =
         , processInstanceStartTitle         :: Text
         , processInstanceStartStaff         :: UserId
         , processInstanceStartUrl           :: Text
-        , processInstanceStartCreatedTime   :: POSIXTime
+        , processInstanceStartCreatedTime   :: Timestamp
         }
     | ProcessInstanceFinishData
         { processInstanceFinishInstanceId    :: ProcessInstanceId
@@ -106,9 +87,9 @@ data ProcessInstanceChangeData =
         , processInstanceFinishTitle         :: Text
         , processInstanceFinishStaff         :: UserId
         , processInstanceFinishUrl           :: Text
-        , processInstanceFinishCreatedTime   :: POSIXTime
-        , processInstanceFinishFinishTime    :: POSIXTime
-        , processInstanceFinishResult        :: ApprovalResult
+        , processInstanceFinishCreatedTime   :: Timestamp
+        , processInstanceFinishFinishTime    :: Timestamp
+        , processInstanceFinishResult        :: ProcessInstResult
         }
 
 -- {{{1 instances
@@ -146,7 +127,7 @@ data ProcessTaskChangeData =
         , processTaskStartBizCategoryId :: BizCategoryId
         , processTaskStartTitle         :: Text
         , processTaskStartStaff         :: UserId
-        , processTaskStartCreatedTime   :: POSIXTime
+        , processTaskStartCreatedTime   :: Timestamp
         }
     | ProcessTaskFinishData
         { processTaskFinishInstanceId    :: ProcessInstanceId
@@ -154,9 +135,9 @@ data ProcessTaskChangeData =
         , processTaskFinishBizCategoryId :: BizCategoryId
         , processTaskFinishTitle         :: Text
         , processTaskFinishStaff         :: UserId
-        , processTaskFinishCreatedTime   :: POSIXTime
-        , processTaskFinishFinishTime    :: POSIXTime
-        , processTaskFinishResult        :: ApprovalResult
+        , processTaskFinishCreatedTime   :: Timestamp
+        , processTaskFinishFinishTime    :: Timestamp
+        , processTaskFinishResult        :: ProcessInstResult
         , processTaskFinishRemark        :: Maybe Text
         }
 
@@ -232,7 +213,7 @@ oapiPostCallbackDelete =
 
 
 data CallbackFailedItem = CallbackFailedItem
-  { cbFailedItemEventTime    :: POSIXTime
+  { cbFailedItemEventTime    :: Timestamp
   , cbFailedItemCorpId       :: CorpId
   , cbFailedItemUserId       :: [UserId]
   , cbFailedItemDeptId       :: [DeptId]
@@ -316,7 +297,7 @@ mkCallbackRespose :: MonadIO m
 -- {{{1
 mkCallbackRespose aes_env token corp_or_key = do
   encrypt_msg <- encryptForProcessApi' aes_env corp_or_key (fromString "success")
-  ts <- liftIO getPOSIXTime
+  ts <- liftIO $ fmap timestampFromPOSIXTime getPOSIXTime
   nonce <- oapiMakeNonce 8
   let signature = asString $ signForProcessApi token ts nonce encrypt_msg
   return $

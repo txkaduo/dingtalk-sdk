@@ -32,6 +32,7 @@ library
                        DingTalk.OAPI.Message.Types
                        DingTalk.OAPI.Message.Chat
                        DingTalk.OAPI.Message.CorpConversation
+                       DingTalk.OAPI.Process
                        DingTalk.JS
                        DingTalk.Yesod
                        DingTalk.Misc
@@ -125,6 +126,8 @@ executable dingtalk-manage
                      , bytestring
                      , transformers
                      , conduit
+                     , aeson-pretty
+                     , time
 
   default-language:    Haskell2010
 
@@ -133,6 +136,7 @@ executable dingtalk-manage
                       OverloadedStrings
                       NoImplicitPrelude
                       CPP
+                      RecordWildCards
 
 test-suite dingtalk-sdk-test
   type:                exitcode-stdio-1.0

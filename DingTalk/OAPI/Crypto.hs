@@ -55,7 +55,7 @@ oapiPreprocessUrlForSign url = url2 <> qs'
 
 oapiSignUrlWithJsApiTicket' :: JsApiTicket
                             -> Nonce
-                            -> POSIXTime
+                            -> Timestamp
                             -> Text
                             -> Text
 -- {{{1
@@ -64,7 +64,7 @@ oapiSignUrlWithJsApiTicket' ticket nonce t url =
       [ ("url", oapiPreprocessUrlForSign url)
       , ("noncestr", unNonce nonce)
       , ("jsapi_ticket", unJsApiTicket ticket)
-      , ("timestamp", tshow (round t :: Int64))
+      , ("timestamp", toParamValue t)
       ]
 -- }}}1
 
@@ -72,13 +72,13 @@ oapiSignUrlWithJsApiTicket' ticket nonce t url =
 oapiSignUrlWithJsApiTicket :: JsApiTicket
                            -> Text
                            -> IO (Either SomeException
-                                          (Text, (Nonce, POSIXTime))
+                                          (Text, (Nonce, Timestamp))
                                  )
                                  -- ^ 正常情况下得到签名，及 Nonce, 时间
 -- {{{1
 oapiSignUrlWithJsApiTicket ticket url = tryAny $ do
   nonce <- oapiMakeNonce 8
-  t <- getPOSIXTime
+  t <- fmap timestampFromPOSIXTime getPOSIXTime
   sign <- evaluate $ oapiSignUrlWithJsApiTicket' ticket nonce t url
   return (sign, (nonce, t))
 -- }}}1
@@ -164,14 +164,14 @@ decryptForProcessApi (DingTalkAesEnv cipher iv) msg = do
 
 signForProcessApi :: IsString a
                   => CallbackToken
-                  -> POSIXTime
+                  -> Timestamp
                   -> Nonce
                   -> ByteString -- ^ 这应是加密的信息json里的 'encrypt' 字段里的字串
                   -> a
 -- {{{1
 signForProcessApi (CallbackToken token) timestamp (Nonce nonce) msg =
   fromString $ show $ (CN.hash :: _ -> CN.Digest CN.SHA1) $
-    encodeUtf8 (token <> tshow timestamp <> nonce) <> msg
+    encodeUtf8 (token <> toParamValue timestamp <> nonce) <> msg
 -- }}}1
 
 
