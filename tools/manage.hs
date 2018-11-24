@@ -19,6 +19,7 @@ import           System.IO             (hPutStrLn)
 import           System.Log.FastLogger (LoggerSet, newStderrLoggerSet,
                                         pushLogStr)
 import           System.Exit
+import           Text.Show.Unicode (ushow)
 
 import DingTalk
 import DingTalk.Helpers
@@ -150,7 +151,7 @@ start opts api_env = flip runReaderT api_env $ do
   atk <- case err_or_atk of
     Right atk -> return atk
     Left err -> do
-      $logError $ "oapiGetAccessToken failed: " <> tshow err
+      $logError $ "oapiGetAccessToken failed: " <> utshow err
       liftIO exitFailure
 
   case optCommand opts of
@@ -158,12 +159,12 @@ start opts api_env = flip runReaderT api_env $ do
       err_or_res <- flip runReaderT atk $ oapiGetAccessTokenScopes
       case err_or_res of
         Left err -> do
-          $logError $ "oapiGetAccessTokenScopes failed: " <> tshow err
+          $logError $ "oapiGetAccessTokenScopes failed: " <> utshow err
           liftIO exitFailure
 
         Right resp -> do
           putStrLn $ "AccessToken is: " <> unAccessToken atk
-          putStrLn $ tshow resp
+          putStrLn $ utshow resp
 
     SearchUser name -> do
       err_or_res <- flip runReaderT atk $ runExceptT $ do
@@ -175,34 +176,34 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "some api failed: " <> tshow err
+          $logError $ "some api failed: " <> utshow err
           liftIO exitFailure
 
         Right user_details_list -> do
           forM_ user_details_list $ \ user_details -> do
             putStrLn $ "User Id: " <> unUserId (userDetailsUserId user_details)
             putStrLn $ "User Name: " <> userDetailsName user_details
-            putStrLn $ "User Roles: " <> tshow (userDetailsRoles user_details)
-            putStrLn $ "User Hire Date: " <> tshow (userDetailsHiredTime user_details)
-            putStrLn $ "Dept Ids: " <> tshow (userDetailsDepartments user_details)
+            putStrLn $ "User Roles: " <> utshow (userDetailsRoles user_details)
+            putStrLn $ "User Hire Date: " <> utshow (userDetailsHiredTime user_details)
+            putStrLn $ "Dept Ids: " <> utshow (userDetailsDepartments user_details)
 
     ShowDeptDetails dept_id -> do
       err_or_res <- flip runReaderT atk $ oapiGetDeptDetails dept_id
       case err_or_res of
         Left err -> do
-          $logError $ "oapiGetDeptDetails failed: " <> tshow err
+          $logError $ "oapiGetDeptDetails failed: " <> utshow err
         Right details -> do
           putStrLn $ "Name: " <> deptDetailsName details
-          putStrLn $ "Manager User Ids" <> tshow (deptDetailsManagerUserIds details)
+          putStrLn $ "Manager User Ids" <> utshow (deptDetailsManagerUserIds details)
           putStrLn $ "Source Identifier: " <> fromMaybe "" (deptDetailsSourceIdentifier details)
 
     DeptSubForest m_dept_id -> do
       err_or_res <- flip runReaderT atk $ oapiGetDeptSubForest (fromMaybe rootDeptId m_dept_id)
       case err_or_res of
         Left err -> do
-          $logError $ "oapiGetDeptSubForest failed: " <> tshow err
+          $logError $ "oapiGetDeptSubForest failed: " <> utshow err
         Right sub_forest -> do
-          putStrLn $ tshow sub_forest
+          putStrLn $ utshow sub_forest
 
     UploadMedia media_type file_path -> do
       file_body <- liftIO $ streamFile file_path
@@ -210,7 +211,7 @@ start opts api_env = flip runReaderT api_env $ do
                       oapiUploadMedia media_type file_body (Just file_path) Nothing
       case err_or_res of
         Left err -> do
-          $logError $ "oapiUploadMedia failed: " <> tshow err
+          $logError $ "oapiUploadMedia failed: " <> utshow err
         Right (UploadMediaResp media_id media_type _created_time) -> do
           putStrLn $ "MediaId is: " <> unMediaId media_id
           putStrLn $ "Types is: " <> toParamValue media_type
@@ -219,7 +220,7 @@ start opts api_env = flip runReaderT api_env $ do
       err_or_res <- flip runReaderT atk $ oapiDownloadMedia media_id
       case err_or_res of
         Left err -> do
-          $logError $ "oapiDownloadMedia failed: " <> tshow err
+          $logError $ "oapiDownloadMedia failed: " <> utshow err
 
         Right resp -> do
           liftIO $ hPutStrLn stderr $ "Content-Type: " <> unpack (decodeUtf8 (resp ^. responseHeader "Content-Type"))
@@ -237,7 +238,7 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "oapiSourceProcessListByUser failed: " <> tshow err
+          $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
 
         Right proc_infos -> do
           forM_ proc_infos $ \ proc_info -> do
@@ -253,7 +254,7 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "oapiSourceProcessListByUser failed: " <> tshow err
+          $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
 
         Right proc_ids -> do
           forM_ proc_ids $ \ proc_id -> do
@@ -264,14 +265,14 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "oapiSourceProcessListByUser failed: " <> tshow err
+          $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
 
         Right (ProcessInstInfo {..}) -> do
           putStrLn $ "Process Instance Info"
           putStrLn $ "====================="
           putStrLn $ "Title: " <> processInstInfoTitle
-          putStrLn $ "Create Time: " <> tshow processInstInfoCreateTime
-          putStrLn $ "Finish Time: " <> tshow processInstInfoFinishTime
+          putStrLn $ "Create Time: " <> utshow processInstInfoCreateTime
+          putStrLn $ "Finish Time: " <> utshow processInstInfoFinishTime
 
           putStr "Operation Records:"
           if null processInstInfoOpRecords
@@ -281,7 +282,7 @@ start opts api_env = flip runReaderT api_env $ do
                   putStrLn "------------------"
 
                   forM_ processInstInfoOpRecords $ \ (ProcessOpRecord {..}) -> do
-                    putStrLn $ "Time: " <> tshow processOpTime
+                    putStrLn $ "Time: " <> utshow processOpTime
                     putStrLn $ "User Id: " <> toParamValue processOpUserId
                     putStrLn $ "Type: " <> toParamValue processOpType
                     putStrLn $ "Result: " <> toParamValue processOpResult
@@ -298,8 +299,8 @@ start opts api_env = flip runReaderT api_env $ do
 
                   forM_ processInstInfoTasks $ \ (ProcessTaskInfo {..}) -> do
                     putStrLn $ "Id: " <> toParamValue processTaskInfoId
-                    putStrLn $ "Create Time: " <> tshow processTaskInfoCreateTime
-                    putStrLn $ "Finish Time: " <> tshow processTaskInfoFinishTime
+                    putStrLn $ "Create Time: " <> utshow processTaskInfoCreateTime
+                    putStrLn $ "Finish Time: " <> utshow processTaskInfoFinishTime
                     putStrLn $ "User Id: " <> toParamValue processTaskInfoUserId
                     putStrLn $ "Status: " <> toParamValue processTaskInfoStatus
                     putStrLn $ "Result: " <> toParamValue processTaskInfoResult
@@ -311,9 +312,9 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "oapiGetUserProcessInstanceToDo failed: " <> tshow err
+          $logError $ "oapiGetUserProcessInstanceToDo failed: " <> utshow err
 
-        Right cnt -> putStrLn $ tshow cnt
+        Right cnt -> putStrLn $ utshow cnt
 
 
     StartProcess proc_code user_id m_dept_id approvers0 -> do
@@ -345,7 +346,7 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "Some API failed: " <> tshow err
+          $logError $ "Some API failed: " <> utshow err
 
         Right proc_inst_id -> putStrLn $ "Process Instance Id: " <> toParamValue proc_inst_id
 
@@ -398,3 +399,10 @@ main = execParser opts >>= start'
                 <> header "dingtalk-manage - 钉钉开发平台管理查询小工具"
                 )
 -- }}}1
+
+
+utshow :: Show a => a -> Text
+utshow = fromString . ushow
+
+
+-- vim: set foldmethod=marker:
