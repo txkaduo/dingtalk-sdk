@@ -7,8 +7,8 @@ module DingTalk.OAPI.Callback
   , CheckUrl(..)
   , ProcessInstanceChangeData(..), ProcessInstanceChange(..)
   , ProcessTaskChangeData(..), ProcessTaskChange(..)
-  , oapiPostCallbackRegister
-  , oapiPostCallbackDelete
+  , oapiRegisterCallback
+  , oapiDeleteCallback
   , oapiGetCallbackFailedList, CallbackFailedItem(..), CallbackGetFailedResponse(..)
   , decryptCallbackPostBody, CallbackEventInput(..)
   , mkCallbackRespose
@@ -185,13 +185,13 @@ instance CallbackEvent ProcessTaskChange where
 
 
 
-oapiPostCallbackRegister :: HttpCallMonad env m
-                         => EncodingAesKey
-                         -> CallbackToken
-                         -> Text  -- ^ URL
-                         -> NonEmpty SomeCallbackEvent
-                         -> ReaderT AccessToken m (Either OapiError ())
-oapiPostCallbackRegister aes_key token url tags =
+oapiRegisterCallback :: HttpCallMonad env m
+                     => EncodingAesKey
+                     -> CallbackToken
+                     -> Text  -- ^ URL
+                     -> NonEmpty SomeCallbackEvent
+                     -> ReaderT AccessToken m (Either OapiError ())
+oapiRegisterCallback aes_key token url tags =
   oapiPostCallWithAtk "/call_back/register_call_back"
     []
     ( object
@@ -203,9 +203,9 @@ oapiPostCallbackRegister aes_key token url tags =
     )
 
 
-oapiPostCallbackDelete :: HttpCallMonad env m
-                       => ReaderT AccessToken m (Either OapiError ())
-oapiPostCallbackDelete =
+oapiDeleteCallback :: HttpCallMonad env m
+                   => ReaderT AccessToken m (Either OapiError ())
+oapiDeleteCallback =
   oapiPostCallWithAtk "/call_back/delete_call_back"
     []
     (mempty :: ByteString)
