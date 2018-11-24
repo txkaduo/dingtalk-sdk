@@ -19,6 +19,27 @@ import           DingTalk.Misc
 -- }}}1
 
 
+userDetailsToOption :: UserDetails -> Option UserDetails
+userDetailsToOption u = Option
+                          (userDetailsName u)
+                          u
+                          (unUserId $ userDetailsUserId u)
+
+
+deptInfoToOption :: DeptInfo -> Option DeptInfo
+deptInfoToOption info = Option
+                          (deptInfoName info)
+                          info
+                          (toParamValue $ deptInfoId info)
+
+
+deptDetailsToOption :: DeptDetails -> Option DeptDetails
+deptDetailsToOption info = Option
+                            (deptDetailsName info)
+                            info
+                            (toParamValue $ deptDetailsId info)
+
+
 -- | 从 User-Agent 找微信版本
 handlerGetDingTalkVer :: MonadHandler m => m (Maybe Text)
 -- {{{1
