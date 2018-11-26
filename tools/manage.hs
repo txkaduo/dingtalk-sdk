@@ -27,6 +27,7 @@ import DingTalk.Helpers
 
 data ManageCmd = Scopes
                | SearchUser Text
+               | ShowUserDetailsById UserId
                | DeptSubForest (Maybe DeptId)
                | ShowDeptDetails DeptId
                | UploadMedia MediaType FilePath
@@ -68,6 +69,10 @@ manageCmdParser = subparser $
   <> command "search-user"
     (info (helper <*> (pure SearchUser <*> fmap fromString (argument str (metavar "USER_NAME"))))
           (progDesc "按用户名搜索钉钉用户")
+    )
+  <> command "show-user-details-by-id"
+    (info (helper <*> (pure ShowUserDetailsById <*> fmap (UserId . fromString) (argument str (metavar "USER_NAME"))))
+          (progDesc "显示指定UserId用户的详情")
     )
   <> command "dept-sub-forest"
     (info (helper <*> (pure DeptSubForest <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
@@ -181,18 +186,37 @@ start opts api_env = flip runReaderT api_env $ do
 
         Right user_details_list -> do
           forM_ user_details_list $ \ user_details -> do
+            putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty user_details
+              {-
             putStrLn $ "User Id: " <> unUserId (userDetailsUserId user_details)
             putStrLn $ "User Name: " <> userDetailsName user_details
             putStrLn $ "User Roles: " <> utshow (userDetailsRoles user_details)
             putStrLn $ "User Hire Date: " <> utshow (userDetailsHiredTime user_details)
             putStrLn $ "Dept Ids: " <> utshow (userDetailsDepartments user_details)
+            --}
+
+    ShowUserDetailsById user_id -> do
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+                        ExceptT $ oapiGetUserDetails user_id
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "some api failed: " <> utshow err
+          liftIO exitFailure
+
+        Right Nothing -> do
+          putStrLn "NOT FOUND"
+
+        Right (Just user_details) -> do
+          putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty user_details
 
     ShowDeptDetails dept_id -> do
       err_or_res <- flip runReaderT atk $ oapiGetDeptDetails dept_id
       case err_or_res of
         Left err -> do
           $logError $ "oapiGetDeptDetails failed: " <> utshow err
-        Right details -> do
+        Right Nothing -> putStrLn "NOT FOUND"
+        Right (Just details) -> do
           putStrLn $ "Name: " <> deptDetailsName details
           putStrLn $ "Manager User Ids" <> utshow (deptDetailsManagerUserIds details)
           putStrLn $ "Source Identifier: " <> fromMaybe "" (deptDetailsSourceIdentifier details)

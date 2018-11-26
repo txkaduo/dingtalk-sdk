@@ -168,10 +168,14 @@ handlerDingTalkLoginComeBack show_widget = do
                 union_id <- ExceptT $ runWithDingTalkSnsAccessToken foundation $ runExceptT $ do
                   fmap snsPersistentAuthCodeRespUnionId $ ExceptT $ oapiSnsGetPersistentAuthCode code
 
-                ExceptT $ runWithDingTalkAccessToken foundation $ oapiGetUserIdByUnionId union_id
+                fmap (union_id,) $ ExceptT $ runWithDingTalkAccessToken foundation $ oapiGetUserIdByUnionId union_id
 
               case err_or of
-                Right x -> return x
+                Right (_, Just x) -> return x
+                Right (union_id, Nothing) -> do
+                  $logErrorS logSourceName $ "Could not found UserId by UnionId: " <> toParamValue union_id
+                  fail $ "钉钉接口错误，请稍后重试(UnionId Error)"
+
                 Left err -> do
                   $logErrorS logSourceName $ "DingTalk api error: " <> tshow err
                   fail $ "钉钉接口错误，请稍后重试"

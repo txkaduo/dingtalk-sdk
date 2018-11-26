@@ -144,9 +144,10 @@ instance ToJSON DeptDetails where
 
 oapiGetDeptDetails :: HttpCallMonad env m
                    => DeptId
-                   -> ReaderT AccessToken m (Either OapiError DeptDetails)
+                   -> ReaderT AccessToken m (Either OapiError (Maybe DeptDetails))
 oapiGetDeptDetails dept_id = do
-  oapiGetCallWithAtk "/department/get" [ "id" &= dept_id ]
+  fmap oapiNotFoundToMaybe $
+    oapiGetCallWithAtk "/department/get" [ "id" &= dept_id ]
 
 
 data UserSimpleInfo = UserSimpleInfo
@@ -326,9 +327,10 @@ oapiGetUserDetails :: HttpCallMonad env m
                    => UserId
                    -> ReaderT AccessToken m (Either OapiError (Maybe UserDetails))
 oapiGetUserDetails user_id =
-  oapiGetCallWithAtk "/user/get"
-    [ "userid" &= user_id
-    ]
+  fmap oapiNotFoundToMaybe $
+    oapiGetCallWithAtk "/user/get"
+      [ "userid" &= user_id
+      ]
 
 
 data AdminLevel = AdminLevelPrimary
@@ -388,12 +390,13 @@ oapiGetAdminDeptList user_id =
 
 oapiGetUserIdByUnionId :: HttpCallMonad env m
                        => UnionId
-                       -> ReaderT AccessToken m (Either OapiError UserId)
+                       -> ReaderT AccessToken m (Either OapiError (Maybe UserId))
 oapiGetUserIdByUnionId union_id =
-  oapiGetCallWithAtk "/user/getUseridByUnionid"
-    [ "unionid" &= union_id
-    ]
-    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "userid"))
+  fmap oapiNotFoundToMaybe $
+    oapiGetCallWithAtk "/user/getUseridByUnionid"
+      [ "unionid" &= union_id
+      ]
+      >>= return . fmap (AE.getSingObject (Proxy :: Proxy "userid"))
 
 
 -- vim: set foldmethod=marker:
