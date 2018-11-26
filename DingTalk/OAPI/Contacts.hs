@@ -46,7 +46,7 @@ data DeptInfo = DeptInfo
   , deptInfoCreateGroup :: Bool
   , deptInfoAutoAddUser :: Bool
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- {{{1 instances
 instance FromJSON DeptInfo where
@@ -108,7 +108,7 @@ data DeptDetails = DeptDetails
   , deptDetailsManagerUserIds   :: [UserId]
   , deptDetailsSourceIdentifier :: Maybe Text
   }
-  deriving (Show)
+  deriving (Show, Eq)
 
 -- {{{1 instances
 instance FromJSON DeptDetails where
@@ -130,6 +130,7 @@ instance ToJSON DeptDetails where
     catMaybes [ Just $ "id" .= deptDetailsId
               , Just $ "name" .= deptDetailsName
               , Just $ "parentid" .= deptDetailsParentId
+              , Just $ "order" .= deptDetailsOrder
               , Just $ "createDeptGroup" .= deptDetailsCreateDeptGroup
               , Just $ "autoAddUser" .= deptDetailsAutoAddUser
               , Just $ "deptHiding" .= deptDetailsHiding
@@ -244,6 +245,7 @@ data Role = Role
   , roleGroupName :: Text
   -- XXX: 实际返回还有个 type 字段，是个数字，意义不明
   }
+  deriving (Eq)
 
 -- {{{1 instances
 instance Show Role where
@@ -283,6 +285,7 @@ data UserDetails = UserDetails
   , userDetailsRoles       :: [Role]
   -- XXX: 还有许多字段没有反映在这个类型里
   }
+  deriving (Show, Eq)
 
 -- {{{1 instances
 instance FromJSON UserDetails where
