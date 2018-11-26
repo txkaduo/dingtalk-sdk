@@ -56,6 +56,15 @@ instance FromJSON DeptInfo where
              <*> o .: "name"
              <*> o .: "createDeptGroup"
              <*> o .: "autoAddUser"
+
+instance ToJSON DeptInfo where
+  toJSON (DeptInfo {..}) = object $
+    catMaybes [ Just $ "id" .= deptInfoId
+              , ("parentid" .=) <$> deptInfoParent
+              , Just $ "name" .= deptInfoName
+              , Just $ "createDeptGroup" .= deptInfoCreateGroup
+              , Just $ "autoAddUser" .= deptInfoAutoAddUser
+              ]
 -- }}}1
 
 
@@ -115,6 +124,20 @@ instance FromJSON DeptDetails where
                             <*> o .: "orgDeptOwner"
                             <*> (o .: "deptManagerUseridList" >>= aesonParseBarSepText (pure . UserId))
                             <*> o .:? "sourceIdentifier"
+
+instance ToJSON DeptDetails where
+  toJSON (DeptDetails {..}) = object $
+    catMaybes [ Just $ "id" .= deptDetailsId
+              , Just $ "name" .= deptDetailsName
+              , Just $ "parentid" .= deptDetailsParentId
+              , Just $ "createDeptGroup" .= deptDetailsCreateDeptGroup
+              , Just $ "autoAddUser" .= deptDetailsAutoAddUser
+              , Just $ "deptHiding" .= deptDetailsHiding
+              , Just $ "groupContainSubDept" .= deptDetailsGroupContainSub
+              , Just $ "orgDeptOwner" .= deptDetailsDeptGroupOwner
+              , Just $ "deptManagerUseridList" .= intercalate "|" (map toParamValue deptDetailsManagerUserIds)
+              , ("sourceIdentifier" .=) <$> deptDetailsSourceIdentifier
+              ]
 -- }}}1
 
 
@@ -130,11 +153,18 @@ data UserSimpleInfo = UserSimpleInfo
   , userSimpleInfoName :: Text
   }
 
+-- {{{1 instances
 instance FromJSON UserSimpleInfo where
   parseJSON = withObject "UserSimpleInfo" $ \ o ->
                 UserSimpleInfo <$> o .: "userid"
                                <*> o .: "name"
 
+instance ToJSON UserSimpleInfo where
+  toJSON (UserSimpleInfo {..}) = object
+                                  [ "userid" .= userSimpleInfoId
+                                  , "name" .= userSimpleInfoName
+                                  ]
+-- }}}1
 
 data DeptUserSortOrder = DeptUserSortEntryAsc
                        | DeptUserSortEntryDesc
@@ -227,6 +257,13 @@ instance FromJSON Role where
                 Role <$> o .: "id"
                      <*> o .: "name"
                      <*> o .: "groupName"
+
+instance ToJSON Role where
+  toJSON (Role {..}) = object
+                        [ "id" .= roleId
+                        , "name" .= roleName
+                        , "groupName" .= roleGroupName
+                        ]
 -- }}}1
 
 
@@ -263,6 +300,23 @@ instance FromJSON UserDetails where
                             <*> (o .:? "avatar" >>= nullTextAsNothing)
                             <*> o .:? "hiredDate"
                             <*> o .: "roles"
+
+instance ToJSON UserDetails where
+  toJSON (UserDetails {..}) = object $ catMaybes
+                              [ Just $ "userid" .= userDetailsUserId
+                              , Just $ "unionid" .= userDetailsUnionId
+                              , Just $ "name" .= userDetailsName
+                              , ("mobile" .=) <$> userDetailsMobile
+                              , ("orgEmail" .=) <$> userDetailsOrgEmail
+                              , Just $ "active" .= userDetailsActive
+                              , Just $ "isAdmin" .= userDetailsIsAdmin
+                              , Just $ "isBoss" .= userDetailsIsBoss
+                              , Just $ "isSenior" .= userDetailsIsSenior
+                              , Just $ "department" .= userDetailsDepartments
+                              , ("avatar" .=) <$> userDetailsAvatar
+                              , Just $ "hiredDate" .= userDetailsHiredTime
+                              , Just $ "roles" .= userDetailsRoles
+                              ]
 -- }}}1
 
 oapiGetUserDetails :: HttpCallMonad env m
@@ -284,18 +338,30 @@ instance FromJSON AdminLevel where
                     (1 :: Int) -> pure AdminLevelPrimary
                     2 -> pure AdminLevelSub
                     _ -> fail $ "unknown admin level: " <> show i
+
+instance ToJSON AdminLevel where
+  toJSON AdminLevelPrimary = toJSON (1 :: Int)
+  toJSON AdminLevelSub     = toJSON (2 :: Int)
 -- }}}1
+
 
 data AdminSimpleInfo = AdminSimpleInfo
   { adminSimpleInfoLevel :: AdminLevel
   , adminSimpleInfoId    :: UserId
   }
 
+-- {{{1 instances
 instance FromJSON AdminSimpleInfo where
   parseJSON = withObject "AdminSimpleInfo" $ \ o ->
     AdminSimpleInfo <$> o .: "sys_level"
                     <*> o .: "userid"
 
+instance ToJSON AdminSimpleInfo where
+  toJSON (AdminSimpleInfo {..}) = object
+                                  [ "sys_level" .= adminSimpleInfoLevel
+                                  , "userid" .= adminSimpleInfoId
+                                  ]
+-- }}}1
 
 -- | 获取管理员列表．
 oapiGetAdminList :: HttpCallMonad env m
