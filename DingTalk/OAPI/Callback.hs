@@ -11,11 +11,13 @@ module DingTalk.OAPI.Callback
   , oapiDeleteCallback
   , oapiGetCallbackFailedList, CallbackFailedItem(..), CallbackGetFailedResponse(..)
   , decryptCallbackPostBody, CallbackEventInput(..)
+  , parseCallbackEventData, handleCallbackEventDataOrLog
   , mkCallbackRespose
   ) where
 
 -- {{{1 imports
 import           ClassyPrelude
+import           Control.Monad.Logger
 import           Data.Aeson as A
 import           Data.List.NonEmpty (NonEmpty)
 import           Data.Proxy
@@ -23,6 +25,7 @@ import           Data.Time.Clock.POSIX
 
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Crypto
+import DingTalk.Helpers
 -- }}}1
 
 
@@ -286,6 +289,34 @@ decryptCallbackPostBody aes_env input_jv = do
       payload <- eitherDecode' (fromStrict payload_bs)
       return $ CallbackEventInput (cbPostBodyEventType pb) id_or_key payload
 -- }}}1
+
+
+parseCallbackEventData :: CallbackEvent a
+                       => CallbackEventInput
+                       -> a
+                       -> Maybe (Either String (CallbackData a))
+                       -- ^ Nothing: event tag not matched
+                       -- ^ Just (Left xx): failed to parse json data
+-- {{{1
+parseCallbackEventData (CallbackEventInput{..}) evt = do
+  guard $ cbEventInputTag == callbackTag evt
+  return $
+    case A.fromJSON cbEventInputData of
+      A.Error err -> Left err
+      A.Success x -> Right x
+-- }}}1
+
+
+handleCallbackEventDataOrLog :: (CallbackEvent a, MonadLogger m)
+                             => CallbackEventInput
+                             -> a
+                             -> (CallbackData a -> m ())
+                             -> m ()
+handleCallbackEventDataOrLog cb_input evt f =
+  forM_ (parseCallbackEventData cb_input evt) $ \ err_or_dat -> do
+    case err_or_dat of
+      Left err -> $logErrorS logSourceName $ "Failed to parse callback event data: " <> fromString err
+      Right dat -> f dat
 
 
 -- | 正常回复回调只有一种方式

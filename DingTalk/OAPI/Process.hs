@@ -10,6 +10,7 @@ module DingTalk.OAPI.Process
   , oapiGetProcessInstanceIdList, oapiSourceProcessInstId
   , ProcessOpRecord(..), ProcessBizAction(..), ProcessTaskStatus(..), ProcessTaskResult(..), FormComponentInput(..)
   , ProcessTaskInfo(..), ProcessInstInfo(..)
+  , processInstInfoFormLookup
   , oapiGetProcessInstanceInfo
   , oapiGetUserProcessInstanceToDo
   ) where
@@ -451,6 +452,11 @@ instance FromJSON ProcessInstInfo where
                                 <*> o .: "biz_action"
                                 <*> o .:? "attached_process_instance_ids" .!= []
 -- }}}1
+
+
+processInstInfoFormLookup :: Text -> ProcessInstInfo -> Maybe FormComponentInput
+processInstInfoFormLookup n =
+  find ((== n) . formComponentInputName) . processInstInfoFormComponentKeyValues
 
 
 -- | 获取单个审批实例
