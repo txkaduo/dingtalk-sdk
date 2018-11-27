@@ -96,14 +96,13 @@ NEWTYPE_DEF(DeptId, Int64)
            )
 
 
-data ProcessInstResult = ProcessApproved | ProcessDenied | ProcessRedirect
+data ProcessInstResult = ProcessApproved | ProcessDenied
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1 instances
 instance ParamValue ProcessInstResult where
   toParamValue ProcessApproved = "agree"
   toParamValue ProcessDenied   = "refuse"
-  toParamValue ProcessRedirect = "redirect"
 
 instance ToJSON ProcessInstResult where
   toJSON = toJSON . toParamValue
