@@ -207,10 +207,12 @@ handlerDingTalkLoginComeBack show_widget = do
 handleDingTalkCallback :: (MonadHandler m, MonadLogger m)
                        => DingTalkAesEnv
                        -> CallbackToken
-                       -> [ (CallbackEventInput -> m ()) ]
+                       -> (CallbackEventInput -> m ())
+                       -- ^ 处理 CheckUrl 逻辑已builtin，不用在这里反映
+                       -- 此函数仅当回调不是 CheckUrl 时调用
                        -> m Value
 -- {{{1
-handleDingTalkCallback aes_env token cb_handlers = do
+handleDingTalkCallback aes_env token cb_handler = do
   body_jv <- requireJsonBody
   case decryptCallbackPostBody aes_env body_jv of
     Left err -> do
@@ -222,9 +224,14 @@ handleDingTalkCallback aes_env token cb_handlers = do
       unless (isKnownCallbackTag event_tag) $ do
         $logErrorS logSourceName $ "Unknown callback event type: " <> event_tag
 
-      sequence_ $ map ($ cb_input) cb_handlers
+      if cbEventInputTag cb_input == check_url_tag
+         then $logDebugS logSourceName "Got CheckUrl event from DingTalk system"
+         else cb_handler cb_input
+
       let corp_or_suite = rawTextToCorpIdOrSuiteKey $ cbEventInputCorpOrSuiteKey cb_input
       mkCallbackRespose aes_env token corp_or_suite
+
+  where check_url_tag = callbackTag CheckUrl
 -- }}}1
 
 
