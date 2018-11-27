@@ -79,7 +79,7 @@ data ProcessInstanceChangeData =
         , processInstanceStartCorpId        :: CorpId
         , processInstanceStartBizCategoryId :: BizCategoryId
         , processInstanceStartTitle         :: Text
-        , processInstanceStartStaff         :: UserId
+        , processInstanceStartApplicant     :: UserId
         , processInstanceStartUrl           :: Text
         , processInstanceStartCreatedTime   :: Timestamp
         }
@@ -88,7 +88,7 @@ data ProcessInstanceChangeData =
         , processInstanceFinishCorpId        :: CorpId
         , processInstanceFinishBizCategoryId :: BizCategoryId
         , processInstanceFinishTitle         :: Text
-        , processInstanceFinishStaff         :: UserId
+        , processInstanceFinishApplicant     :: UserId
         , processInstanceFinishUrl           :: Text
         , processInstanceFinishCreatedTime   :: Timestamp
         , processInstanceFinishFinishTime    :: Timestamp
