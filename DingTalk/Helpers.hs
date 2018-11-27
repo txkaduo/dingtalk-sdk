@@ -156,7 +156,7 @@ randomAlphaNumString :: MonadIO m
                      => Int
                      -> m String
 randomAlphaNumString len = do
-  liftIO $ replicateM len $ fmap (chars !!) $ randomRIO (0, chars_len)
+  liftIO $ replicateM len $ fmap (chars !!) $ randomRIO (0, chars_len - 1)
   where chars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9']
         chars_len = length chars
 
