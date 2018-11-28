@@ -254,10 +254,8 @@ oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
 oapiDeleteCallback :: HttpCallMonad env m
                    => ReaderT AccessToken m (Either OapiError ())
 oapiDeleteCallback =
-  oapiPostCallWithAtk "/call_back/delete_call_back"
-    []
-    (mempty :: ByteString)
-
+  oapiGetCallWithAtk "/call_back/delete_call_back" []
+    >>= return . right unUnit
 
 
 data CallbackFailedItem = CallbackFailedItem
