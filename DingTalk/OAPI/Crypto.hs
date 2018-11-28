@@ -84,23 +84,27 @@ oapiSignUrlWithJsApiTicket ticket url = tryAny $ do
 -- }}}1
 
 
-data DingTalkAesEnv = DingTalkAesEnv CN.AES256 (CN.IV CN.AES256)
+data AesEnv = AesEnv
+  { aesEnvCipher :: CN.AES256
+  , aesEnvIV     :: CN.IV CN.AES256
+  , aesEnvKey    :: EncodingAesKey
+  }
 
-instance Show DingTalkAesEnv where
-  show (DingTalkAesEnv _ _) = show (asString "AES256", asString "some IV")
+instance Show AesEnv where
+  show (AesEnv _ _ k) = show (asString "AES256", asString "some IV", unpack (toParamValue k))
 
 
 -- | 解释钉钉的AES Key字串
-parseEncodingAesKey :: EncodingAesKey -> Either String DingTalkAesEnv
+parseEncodingAesKey :: EncodingAesKey -> Either String AesEnv
 -- {{{1
-parseEncodingAesKey (EncodingAesKey key_txt) = do
+parseEncodingAesKey k@(EncodingAesKey key_txt) = do
   bs <- B64.decode $ encodeUtf8 (key_txt <> "=")
   unless (length bs == 32) $ do
     Left $ "Invalid AES Key length: " <> show (length bs)
 
   cipher <- left show $ CN.eitherCryptoError $ CN.cipherInit bs
   iv <- maybe (Left "failed to generate IV") return $ CN.makeIV $ take 16 bs
-  return (DingTalkAesEnv cipher iv)
+  return (AesEnv cipher iv k)
 -- }}}1
 
 
@@ -109,7 +113,7 @@ newEncodingAesKey = fmap (EncodingAesKey . fromString) $ randomAlphaNumString 43
 
 
 encryptForProcessApi' :: (MonadIO m)
-                      => DingTalkAesEnv
+                      => AesEnv
                       -> Either CorpId SuiteKey
                       -> ByteString
                       -> m ByteString
@@ -118,13 +122,13 @@ encryptForProcessApi' aes_key corp_or_suite msg = do
   return $ encryptForProcessApi aes_key corp_or_suite random_pad msg
 
 
-encryptForProcessApi :: DingTalkAesEnv
+encryptForProcessApi :: AesEnv
                      -> Either CorpId SuiteKey
                      -> ByteString -- ^ random padding string, must be of length 16
                      -> ByteString -- ^ message payload
                      -> ByteString
 -- {{{1
-encryptForProcessApi (DingTalkAesEnv cipher iv) corp_or_suite random_pad msg = do
+encryptForProcessApi (AesEnv cipher iv _) corp_or_suite random_pad msg = do
   B64.encode $ CN.cbcEncrypt cipher iv padded_msg
   where msg_len = length msg
         msg_len_pad = toStrict $ Bin.runPut $ Bin.putWord32be $ fromIntegral msg_len
@@ -135,12 +139,12 @@ encryptForProcessApi (DingTalkAesEnv cipher iv) corp_or_suite random_pad msg = d
 -- }}}1
 
 
-decryptForProcessApi :: DingTalkAesEnv
+decryptForProcessApi :: AesEnv
                      -> ByteString
                      -> Either String (ByteString, Text)
 -- ^ result is (message payload, CorpId/SuiteKey)
 -- {{{1
-decryptForProcessApi (DingTalkAesEnv cipher iv) msg = do
+decryptForProcessApi (AesEnv cipher iv _) msg = do
   bs_to_decrypt <- B64.decode msg
   let msg_decrypted = CN.cbcDecrypt cipher iv bs_to_decrypt
   msg_unpadded <- maybe (Left "Failed to unpad") return $ CN.unpad (CN.PKCS7 block_size) msg_decrypted

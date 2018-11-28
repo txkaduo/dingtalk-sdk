@@ -205,7 +205,7 @@ handlerDingTalkLoginComeBack show_widget = do
 
 
 handleDingTalkCallback :: (MonadHandler m, MonadLogger m)
-                       => DingTalkAesEnv
+                       => AesEnv
                        -> CallbackToken
                        -> (CallbackEventInput -> m ())
                        -- ^ 处理 CheckUrl 逻辑已builtin，不用在这里反映

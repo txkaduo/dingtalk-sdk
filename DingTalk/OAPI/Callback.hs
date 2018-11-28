@@ -276,7 +276,7 @@ data CallbackEventInput = CallbackEventInput
 
 
 -- | 响应回调时，解释 HTTP 的 post body，得到所需的 CallbackData 及 CorpId/SuiteKey
-decryptCallbackPostBody :: DingTalkAesEnv
+decryptCallbackPostBody :: AesEnv
                         -> Value
                         -> Either String CallbackEventInput
 -- {{{1
@@ -321,7 +321,7 @@ handleCallbackEventDataOrLog cb_input evt f =
 
 -- | 正常回复回调只有一种方式
 mkCallbackRespose :: MonadIO m
-                  => DingTalkAesEnv
+                  => AesEnv
                   -> CallbackToken
                   -> Either CorpId SuiteKey
                   -> m Value
