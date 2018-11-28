@@ -12,7 +12,6 @@ import qualified Crypto.Error               as CN
 import qualified Crypto.Hash                as CN
 import qualified Crypto.Cipher.Types        as CN
 import qualified Crypto.Data.Padding        as CN
-import qualified Crypto.Random.Types        as CN
 import qualified Data.ByteString.Base64     as B64
 import qualified Data.Text                  as T
 import           Data.Time.Clock.POSIX
@@ -27,7 +26,6 @@ import DingTalk.Helpers
 oapiMakeNonce :: MonadIO m
               => Int
               -> m Nonce
--- {{{1
 oapiMakeNonce = fmap (Nonce . fromString) . oapiMakeString
 
 
@@ -118,7 +116,7 @@ encryptForProcessApi' :: (MonadIO m)
                       -> ByteString
                       -> m ByteString
 encryptForProcessApi' aes_key corp_or_suite msg = do
-  random_pad <- liftIO $ CN.getRandomBytes 16
+  random_pad <- fmap fromString $ randomAlphaNumString 16
   return $ encryptForProcessApi aes_key corp_or_suite random_pad msg
 
 
@@ -175,7 +173,11 @@ signForProcessApi :: IsString a
 -- {{{1
 signForProcessApi (CallbackToken token) timestamp (Nonce nonce) msg =
   fromString $ show $ (CN.hash :: _ -> CN.Digest CN.SHA1) $
-    encodeUtf8 (token <> toParamValue timestamp <> nonce) <> msg
+    -- XXX: 要对值先排序再合并，这个行为并没有写在文档里！！！
+    --      要仔细看官方SDK代码才发现
+    encodeUtf8 $ mconcat $ sort list
+  where list = [ token, toParamValue timestamp, nonce, decodeUtf8 msg ]
+
 -- }}}1
 
 

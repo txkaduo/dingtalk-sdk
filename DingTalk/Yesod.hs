@@ -4,6 +4,7 @@ module DingTalk.Yesod where
 import           ClassyPrelude.Yesod hiding (requestHeaders)
 import           Control.Monad.Trans.Except
 import           Yesod.Core.Types (HandlerContents(HCError))
+import qualified Data.Aeson.Encode.Pretty as AP
 import           Data.List ((!!))
 import           Network.Wai         (requestHeaders)
 import           System.Random (randomRIO)
@@ -204,7 +205,7 @@ handlerDingTalkLoginComeBack show_widget = do
 -- }}}1
 
 
-handleDingTalkCallback :: (MonadHandler m, MonadLogger m)
+handleDingTalkCallback :: (MonadHandler m, MonadLogger m, RenderMessage (HandlerSite m) FormMessage)
                        => AesEnv
                        -> CallbackToken
                        -> (CallbackEventInput -> m ())
@@ -213,23 +214,42 @@ handleDingTalkCallback :: (MonadHandler m, MonadLogger m)
                        -> m Value
 -- {{{1
 handleDingTalkCallback aes_env token cb_handler = do
-  body_jv <- requireJsonBody
-  case decryptCallbackPostBody aes_env body_jv of
-    Left err -> do
-      $logErrorS logSourceName $ "Failed to parse callback post body: " <> fromString err
-      invalidArgs ["POST Body"]
+  form_res <-
+      runInputGetResult $
+          (,,) <$> ireq textField "signature"
+               <*> ireq (convertField Timestamp unTimestamp intField) "timestamp"
+               <*> ireq (convertField Nonce unNonce textField) "nonce"
 
-    Right cb_input -> do
-      let event_tag = cbEventInputTag cb_input
-      unless (isKnownCallbackTag event_tag) $ do
-        $logErrorS logSourceName $ "Unknown callback event type: " <> event_tag
+  case form_res of
+    FormFailure errs -> do
+      $logErrorS logSourceName $ "input params error: " <> intercalate ";" errs
+      invalidArgs errs
 
-      if cbEventInputTag cb_input == check_url_tag
-         then $logDebugS logSourceName "Got CheckUrl event from DingTalk system"
-         else cb_handler cb_input
+    FormMissing -> do
+      -- should never happen
+      $logErrorS logSourceName $ "Got FormMissing"
+      invalidArgs []
 
-      let corp_or_suite = rawTextToCorpIdOrSuiteKey $ cbEventInputCorpOrSuiteKey cb_input
-      mkCallbackRespose aes_env token corp_or_suite
+    FormSuccess (signature, ts, nonce) -> do
+      body_jv <- requireJsonBody
+      case decryptCallbackPostBody aes_env token signature ts nonce body_jv of
+        Left err -> do
+          $logErrorS logSourceName $ "Failed to parse callback post body or signature error: " <> err
+                                    <> "\nJSON data was:\n"
+                                    <> toStrict (decodeUtf8 $ AP.encodePretty body_jv)
+          invalidArgs ["POST Body"]
+
+        Right cb_input -> do
+          let event_tag = cbEventInputTag cb_input
+          unless (isKnownCallbackTag event_tag) $ do
+            $logErrorS logSourceName $ "Unknown callback event type: " <> event_tag
+
+          if cbEventInputTag cb_input == check_url_tag
+             then $logDebugS logSourceName "Got CheckUrl event from DingTalk system"
+             else cb_handler cb_input
+
+          let corp_or_suite = rawTextToCorpIdOrSuiteKey $ cbEventInputCorpOrSuiteKey cb_input
+          mkCallbackRespose aes_env token corp_or_suite
 
   where check_url_tag = callbackTag CheckUrl
 -- }}}1

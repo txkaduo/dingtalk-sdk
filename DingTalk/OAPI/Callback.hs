@@ -7,7 +7,7 @@ module DingTalk.OAPI.Callback
   , CheckUrl(..)
   , ProcessInstanceChangeData(..), ProcessInstanceChange(..)
   , ProcessTaskChangeData(..), ProcessTaskChange(..)
-  , oapiRegisterCallback
+  , oapiRegisterCallback, oapiUpdateCallback, oapiRegisterOrUpdateCallback
   , oapiDeleteCallback
   , oapiGetCallbackFailedList, CallbackFailedItem(..), CallbackGetFailedResponse(..)
   , decryptCallbackPostBody, CallbackEventInput(..)
@@ -17,8 +17,11 @@ module DingTalk.OAPI.Callback
 
 -- {{{1 imports
 import           ClassyPrelude
+import           Control.Arrow
+import           Control.Monad.Except hiding (forM_)
 import           Control.Monad.Logger
 import           Data.Aeson as A
+import qualified Data.Aeson.Extra     as AE
 import           Data.List.NonEmpty (NonEmpty)
 import           Data.Proxy
 import           Data.Time.Clock.POSIX
@@ -194,6 +197,7 @@ oapiRegisterCallback :: HttpCallMonad env m
                      -> Text  -- ^ URL
                      -> NonEmpty SomeCallbackEvent
                      -> ReaderT AccessToken m (Either OapiError ())
+-- {{{1
 oapiRegisterCallback aes_key token url tags =
   oapiPostCallWithAtk "/call_back/register_call_back"
     []
@@ -201,9 +205,50 @@ oapiRegisterCallback aes_key token url tags =
         [ "aes_key" .= aes_key
         , "token" .= token
         , "url" .= url
-        , "tags" .= map ( \ (SomeCallbackEvent p) -> callbackTag p) (toList tags)
+        , "call_back_tag" .= map ( \ (SomeCallbackEvent p) -> callbackTag p) (toList tags)
         ]
     )
+    >>= return . right unUnit
+-- }}}1
+
+
+oapiUpdateCallback :: HttpCallMonad env m
+                   => EncodingAesKey
+                   -> CallbackToken
+                   -> Text  -- ^ URL
+                   -> NonEmpty SomeCallbackEvent
+                   -> ReaderT AccessToken m (Either OapiError ())
+-- {{{1
+oapiUpdateCallback aes_key token url tags =
+  oapiPostCallWithAtk "/call_back/update_call_back"
+    []
+    ( object
+        [ "aes_key" .= aes_key
+        , "token" .= token
+        , "url" .= url
+        , "call_back_tag" .= map ( \ (SomeCallbackEvent p) -> callbackTag p) (toList tags)
+        ]
+    )
+    >>= return . right unUnit
+-- }}}1
+
+
+oapiRegisterOrUpdateCallback :: HttpCallMonad env m
+                             => EncodingAesKey
+                             -> CallbackToken
+                             -> Text  -- ^ URL
+                             -> NonEmpty SomeCallbackEvent
+                             -> ReaderT AccessToken m (Either OapiError ())
+-- {{{1
+oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
+  ExceptT (oapiRegisterCallback aes_key token url tags)
+    `catchError`
+      ( \ err -> do
+        case oapiErrorCode err of
+          71006 -> ExceptT $ oapiUpdateCallback aes_key token url tags
+          _     -> throwError err
+      )
+-- }}}1
 
 
 oapiDeleteCallback :: HttpCallMonad env m
@@ -257,17 +302,6 @@ oapiGetCallbackFailedList =
   oapiGetCallWithAtk "/call_back/get_call_back_failed_result" []
 
 
-data CallbackPostBody = CallbackPostBody
-  { cbPostBodyEventType :: Text
-  , cbPostBodyEncrypt   :: Text
-  }
-
-instance FromJSON CallbackPostBody where
-  parseJSON = withObject "CallbackPostBody" $ \ o -> do
-                CallbackPostBody <$> o .: "EventType"
-                                 <*> o .: "encrypt"
-
-
 data CallbackEventInput = CallbackEventInput
   { cbEventInputTag            :: Text
   , cbEventInputCorpOrSuiteKey :: Text
@@ -277,17 +311,26 @@ data CallbackEventInput = CallbackEventInput
 
 -- | 响应回调时，解释 HTTP 的 post body，得到所需的 CallbackData 及 CorpId/SuiteKey
 decryptCallbackPostBody :: AesEnv
+                        -> CallbackToken
+                        -> Text -- ^ signature
+                        -> Timestamp
+                        -> Nonce
                         -> Value
-                        -> Either String CallbackEventInput
+                        -> Either Text CallbackEventInput
 -- {{{1
-decryptCallbackPostBody aes_env input_jv = do
-  case fromJSON input_jv of
-    A.Error err -> Left $ "Failed to parse JSON structure of input: " <> show err
-    A.Success pb -> do
-      let enc_bs = encodeUtf8 $ cbPostBodyEncrypt pb
-      (payload_bs, id_or_key) <- decryptForProcessApi aes_env enc_bs
-      payload <- eitherDecode' (fromStrict payload_bs)
-      return $ CallbackEventInput (cbPostBodyEventType pb) id_or_key payload
+decryptCallbackPostBody aes_env token signature timestamp nonce input_jv = do
+  input_enc <- fromJSON'Message input_jv
+  let enc_bs = encodeUtf8 $ AE.getSingObject (Proxy :: Proxy "encrypt") input_enc
+      my_sign = signForProcessApi token timestamp nonce enc_bs
+
+  unless (signature == my_sign) $ do
+    Left $ "Signature error, expected was: " <> my_sign
+
+  (payload_bs, id_or_key) <- left fromString $ decryptForProcessApi aes_env enc_bs
+  payload_jv <- left fromString $ eitherDecode' (fromStrict payload_bs)
+  evt_type <- AE.getSingObject (Proxy :: Proxy "EventType") <$> fromJSON'Message payload_jv
+  payload <- fromJSON'Message payload_jv
+  return $ CallbackEventInput evt_type id_or_key payload
 -- }}}1
 
 
@@ -338,6 +381,7 @@ mkCallbackRespose aes_env token corp_or_key = do
            , "nonce" .= nonce
            ]
 -- }}}1
+
 
 
 

@@ -47,6 +47,7 @@ library
                      , containers
                      , aeson
                      , aeson-extra
+                     , aeson-pretty
                      , shakespeare
                      , blaze-html
                      , persistent

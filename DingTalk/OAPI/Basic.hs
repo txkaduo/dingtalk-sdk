@@ -63,7 +63,6 @@ instance FromJSON a => FromJSON (OapiErrorOrPayload a) where
 -- }}}1
 
 
-
 oapiUrlBase :: IsString s => s
 oapiUrlBase = "https://oapi.dingtalk.com"
 
@@ -73,12 +72,12 @@ oapiToPayload :: (MonadLogger m, MonadThrow m, FromJSON a)
               -> m (Either OapiError a)
 -- {{{1
 oapiToPayload v = do
-  case fromJSON v of
-    A.Error err -> do
-      $logErrorS logSourceName $ "Could not parse response body to payload: " <> fromString err
-      throwM $ DatagramError err
+  case fromJSON'Message v of
+    Left err -> do
+      $logErrorS logSourceName $ "Could not parse response body to payload: " <> err
+      throwM $ DatagramError (unpack err)
 
-    A.Success (OapiErrorOrPayload x) -> return x
+    Right (OapiErrorOrPayload x) -> return x
 -- }}}1
 
 

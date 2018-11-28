@@ -9,6 +9,7 @@ import           Data.Aeson.Lens      (key)
 import qualified Data.Aeson           as A
 import qualified Data.Aeson.Text      as A
 import qualified Data.Aeson.Types     as A
+import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Base64.URL as B64L
 import qualified Data.ByteString.Char8      as C8
 import           Data.List            ((!!))
@@ -16,6 +17,12 @@ import qualified Data.Text            as T
 import           Network.Wreq hiding (Proxy)
 import           System.Random              (randomIO, randomRIO)
 -- }}}1
+
+
+newtype Unit = Unit { unUnit :: () }
+
+instance A.FromJSON Unit where
+  parseJSON = A.withObject "Unit" $ const $ pure $ Unit ()
 
 
 class ParamValue a where
@@ -91,6 +98,19 @@ getJsonFieldMay jv field = do
                                   <> field <> "' in JSON: " <> fromString err
 
   where jv_txt = toStrict (A.encodeToLazyText jv)
+-- }}}1
+
+
+fromJSON'Message :: (A.FromJSON a)
+                 => A.Value
+                 -> Either Text a
+-- {{{1
+fromJSON'Message jv =
+  case A.fromJSON jv of
+    A.Success x -> return x
+    A.Error err -> Left $ "Failed to parse JSON structure: " <> fromString err
+                          <> "\ndata was:\n"
+                          <> toStrict (decodeUtf8 $ AP.encodePretty jv)
 -- }}}1
 
 

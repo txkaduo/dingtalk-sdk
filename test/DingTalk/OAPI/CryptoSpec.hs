@@ -52,13 +52,17 @@ spec = do
         aes_env <- either (\ err -> error $ "parseEncodingAesKey failed: " <> err) return $
                       parseEncodingAesKey (EncodingAesKey "1234567890123456789012345678901234567890123")
 
-        let origin_msg = "this_is_the_msg"
         let corp_id = CorpId "corpid"
-            encrypted_msg = encryptForProcessApi aes_env (Left corp_id) "0123456789123456" origin_msg
 
-        (decrypted_msg, corp_id2) <-
-            either (\ err -> error $ "decryptForProcessApi failed: " <> err) return $
-                          decryptForProcessApi aes_env encrypted_msg
+        let test_msg origin_msg = do
+              let encrypted_msg = encryptForProcessApi aes_env (Left corp_id) "0123456789123456" origin_msg
 
-        decrypted_msg `shouldBe` origin_msg
-        (CorpId corp_id2) `shouldBe` corp_id
+              (decrypted_msg, corp_id2) <-
+                  either (\ err -> error $ "decryptForProcessApi failed: " <> err) return $
+                                decryptForProcessApi aes_env encrypted_msg
+
+              decrypted_msg `shouldBe` origin_msg
+              (CorpId corp_id2) `shouldBe` corp_id
+
+        test_msg "this_is_the_msg"
+        test_msg "success"
