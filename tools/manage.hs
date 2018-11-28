@@ -37,6 +37,7 @@ data ManageCmd = Scopes
                | ShowProcessInst ProcessInstanceId
                | ShowUserProcessToDo UserId
                | StartProcess ProcessCode UserId (Maybe DeptId) [UserId]
+               | DeleteCallback
                deriving (Show)
 
 data Options = Options
@@ -132,6 +133,10 @@ manageCmdParser = subparser $
                       ))
           (progDesc "发起一个审批，仅用于测试")
     )
+  <> command "delete-callback"
+      (info (helper <*> pure DeleteCallback)
+        (progDesc "删除已注册回调")
+      )
 -- }}}1
 
 
@@ -373,6 +378,14 @@ start opts api_env = flip runReaderT api_env $ do
           $logError $ "Some API failed: " <> utshow err
 
         Right proc_inst_id -> putStrLn $ "Process Instance Id: " <> toParamValue proc_inst_id
+
+
+    DeleteCallback -> do
+      err_or_res <- flip runReaderT atk $ oapiDeleteCallback
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right () -> putStrLn "OK"
 
   where
     corp_id = optCorpId opts
