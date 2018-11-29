@@ -364,6 +364,7 @@ instance FromJSON ProcessTaskStatus where
 data ProcessTaskResult = ProcessTaskAgreed
                        | ProcessTaskRefused
                        | ProcessTaskRedirected
+                       | ProcessTaskNone  -- ^ 文档没解释这是什么
                       deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1 instances
@@ -371,6 +372,7 @@ instance ParamValue ProcessTaskResult where
   toParamValue ProcessTaskAgreed     = "AGREE"
   toParamValue ProcessTaskRefused    = "REFUSE"
   toParamValue ProcessTaskRedirected = "REDIRECTED"
+  toParamValue ProcessTaskNone       = "NONE"
 
 instance ToJSON ProcessTaskResult where toJSON = toJSON . toParamValue
 
@@ -422,7 +424,7 @@ data ProcessInstInfo = ProcessInstInfo
   , processInstInfoApproverUserIds        :: [UserId]
   , processInstInfoCcUserIds              :: [UserId]
   , processInstInfoFormComponentKeyValues :: [FormComponentInput]
-  , processInstInfoResult                 :: ProcessInstResult
+  , processInstInfoResult                 :: Maybe ProcessInstResult
   , processInstInfoBizId                  :: ProcessBizId
   , processInstInfoOpRecords              :: [ProcessOpRecord]
   , processInstInfoTasks                  :: [ProcessTaskInfo]
@@ -444,7 +446,10 @@ instance FromJSON ProcessInstInfo where
                                 <*> (o .: "approver_userids" >>= aesonParseSepTextOrList "," (return . UserId))
                                 <*> ((o .:? "cc_userids" >>= mapM (aesonParseSepTextOrList "," (return . UserId))) .!= [])
                                 <*> o .: "form_component_values"
-                                <*> o .: "result"
+                                <*> ( o .:? "result"
+                                      >>= nullTextAsNothing
+                                      >>= mapM (parseJsonParamValueEnumBounded "ProcessInstResult" . toJSON)
+                                    )
                                 <*> o .: "business_id"
                                 <*> o .:? "operation_records" .!= []
                                 <*> o .:? "tasks" .!= []
