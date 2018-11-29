@@ -26,7 +26,7 @@ import DingTalk.Helpers
 oapiMakeNonce :: MonadIO m
               => Int
               -> m Nonce
-oapiMakeNonce = fmap (Nonce . fromString) . oapiMakeString
+oapiMakeNonce = fmap (Nonce . fromString) . randomBase64String
 
 
 oapiSignParams :: [(Text, Text)] -> Text

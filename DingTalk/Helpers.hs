@@ -161,11 +161,11 @@ parseJsonParamValueEnumBounded name = A.withText name $ \ t -> do
 
 
 -- | 生成随机字串: 字串使用base64相同的字符集
-oapiMakeString :: MonadIO m
-               => Int
-               -> m String
+randomBase64String :: MonadIO m
+                   => Int
+                   -> m String
 -- {{{1
-oapiMakeString salt_len = liftIO $ do
+randomBase64String salt_len = liftIO $ do
   liftM (C8.unpack . take salt_len . B64L.encode . pack) $
       replicateM gen_len randomIO
   where gen_len = salt_len  -- long enough

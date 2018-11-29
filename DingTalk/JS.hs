@@ -69,7 +69,7 @@ redisGetOrUpdateJsApiTicket conn (lock_key, save_key) max_seconds = do
   log_func <- askLoggerIO
   atk <- ask
   e <- lift ask
-  random_str <- fmap fromString $ oapiMakeString 16
+  random_str <- fmap fromString $ randomBase64String 16
   err_or <- liftIO $ R.runRedis conn $ runExceptT $ do
     m_ticket <- fmap (fmap $ JsApiTicket . decodeUtf8) $ ExceptT $ R.get save_key
     case m_ticket of
