@@ -241,13 +241,9 @@ oapiRegisterOrUpdateCallback :: HttpCallMonad env m
                              -> ReaderT AccessToken m (Either OapiError ())
 -- {{{1
 oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
-  ExceptT (oapiRegisterCallback aes_key token url tags)
-    `catchError`
-      ( \ err -> do
-        case oapiErrorCode err of
-          71006 -> ExceptT $ oapiUpdateCallback aes_key token url tags
-          _     -> throwError err
-      )
+  catchOapiError 71006
+    (ExceptT (oapiRegisterCallback aes_key token url tags))
+    (ExceptT $ oapiUpdateCallback aes_key token url tags)
 -- }}}1
 
 
