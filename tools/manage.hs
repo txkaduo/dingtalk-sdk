@@ -10,6 +10,7 @@ import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.List.NonEmpty (nonEmpty)
+import qualified Data.Text as T
 import           Data.Time.Clock.POSIX
 import           Network.HTTP.Client   (streamFile)
 import           Network.Wreq         (responseBody, responseHeader)
@@ -36,7 +37,7 @@ data ManageCmd = Scopes
                | ListProcessInstId ProcessCode Int (Maybe UserId)
                | ShowProcessInst ProcessInstanceId
                | ShowUserProcessToDo UserId
-               | StartProcess ProcessCode UserId (Maybe DeptId) [UserId]
+               | StartProcess ProcessCode UserId (Maybe DeptId) [UserId] [(Text, Text)]
                | DeleteCallback
                deriving (Show)
 
@@ -128,8 +129,9 @@ manageCmdParser = subparser $
   <> command "start-process"
     (info (helper <*> (pure StartProcess <*> fmap ProcessCode (argument str (metavar "PROCESS_CODE"))
                                          <*> fmap UserId (argument str (metavar "USER_ID"))
-                                         <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))
+                                         <*> optional (DeptId <$> option auto (long "dept" <> short 'd' <> metavar "DEPT_ID"))
                                          <*> some (UserId . fromString <$> strOption (long "approver" <> short 'A' <> metavar "APPROVER_USER"))
+                                         <*> some (argument nameValueParser (metavar "NAME=VALUE"))
                       ))
           (progDesc "发起一个审批，仅用于测试")
     )
@@ -137,6 +139,18 @@ manageCmdParser = subparser $
       (info (helper <*> pure DeleteCallback)
         (progDesc "删除已注册回调")
       )
+-- }}}1
+
+
+-- | parse 'name=value'
+nameValueParser :: ReadM (Text, Text)
+-- {{{1
+nameValueParser = do
+  t <- str
+  let (name, value1) = T.breakOn "=" t
+  value <- maybe (readerError $ "no '=' found in " <> unpack t) return $ T.stripPrefix "=" value1
+  when (null name) $ readerError $ "name part is empty in " <> unpack t
+  return (name, value)
 -- }}}1
 
 
@@ -346,22 +360,10 @@ start opts api_env = flip runReaderT api_env $ do
         Right cnt -> putStrLn $ utshow cnt
 
 
-    StartProcess proc_code user_id m_dept_id approvers0 -> do
+    StartProcess proc_code user_id m_dept_id approvers0 nv_list -> do
       approvers <- maybe (fail "审批人不能为空") return (nonEmpty approvers0)
-      let inputs = [ ("输入一", FormCompValueText "这是文字")
-                   , ("多行输入", FormCompValueText "这是文字\n又多一行")
-                   , ("图片", FormCompValueImages (pure (Left "https://img.alicdn.com/tfs/TB1vxZHoGmWBuNjy1XaXXXCbXXa-180-32.png")))
-                   , ("明细", FormCompValueDetails
-                                (pure
-                                  (
-                                    mapFromList [ ("明细输入一", FormCompValueText "啦啦")
-                                                , ("明细输入二", FormCompValueText "呵呵")
-                                                ]
-                                  )
-                                )
-                      )
-                   ]
 
+      let inputs_map = mapFromList $ map (uncurry (@=)) nv_list
       err_or_res <- flip runReaderT atk $ runExceptT $ do
                       dept_id <- case m_dept_id of
                                    Just x -> return x
@@ -371,7 +373,7 @@ start opts api_env = flip runReaderT api_env $ do
                                         >>= maybe (fail "user not found") return
                                         >>= maybe (fail "user does not belong to any dept") return . listToMaybe
 
-                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id approvers Nothing (mapFromList inputs)
+                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id approvers Nothing inputs_map
 
       case err_or_res of
         Left err -> do

@@ -130,6 +130,7 @@ executable dingtalk-manage
                      , conduit
                      , aeson-pretty
                      , time
+                     , text
                      , unicode-show
 
   default-language:    Haskell2010
