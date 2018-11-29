@@ -28,6 +28,7 @@ import           Data.Time.Clock.POSIX
 
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Crypto
+import DingTalk.OAPI.ErrorCode
 import DingTalk.Helpers
 -- }}}1
 
@@ -241,7 +242,7 @@ oapiRegisterOrUpdateCallback :: HttpCallMonad env m
                              -> ReaderT AccessToken m (Either OapiError ())
 -- {{{1
 oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
-  catchOapiError 71006
+  catchOapiError oapiEcCallbackAlreadyExists
     (ExceptT (oapiRegisterCallback aes_key token url tags))
     (ExceptT $ oapiUpdateCallback aes_key token url tags)
 -- }}}1

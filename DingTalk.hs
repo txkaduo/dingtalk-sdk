@@ -13,6 +13,7 @@ module DingTalk
   , module DingTalk.JS
   , module DingTalk.Yesod
   , module DingTalk.Misc
+  , module DingTalk.OAPI.ErrorCode
   ) where
 
 import DingTalk.Types
@@ -29,3 +30,4 @@ import DingTalk.Misc
 import DingTalk.OAPI.Message.CorpConversation
 import DingTalk.OAPI.Process
 import DingTalk.OAPI.Callback
+import DingTalk.OAPI.ErrorCode

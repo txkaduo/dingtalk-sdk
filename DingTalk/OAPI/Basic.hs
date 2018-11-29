@@ -28,6 +28,7 @@ import           Text.Show.Unicode (ushow)
 
 import DingTalk.Types
 import DingTalk.Helpers
+import DingTalk.OAPI.ErrorCode
 -- }}}1
 
 
@@ -86,9 +87,9 @@ oapiToPayload v = do
 oapiNotFoundToMaybe :: Either OapiError a
                     -> Either OapiError (Maybe a)
 oapiNotFoundToMaybe (Right x) = Right (Just x)
-oapiNotFoundToMaybe (Left err) = case oapiErrorCode err of
-                                   60121 -> Right Nothing
-                                   _ -> Left err
+oapiNotFoundToMaybe (Left err) = if oapiErrorCode err == oapiEcNotFound
+                                    then Right Nothing
+                                    else Left err
 
 
 catchOapiError :: MonadError OapiError m
