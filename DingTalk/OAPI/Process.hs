@@ -4,6 +4,7 @@ module DingTalk.OAPI.Process
   , oapiGetProcessListByUser
   , oapiSourceProcessListByUser
   , CcTiming(..), FormComponentValue(..), FormCompValueNameValues
+  , (@=)
   , oapiCreateProcessInstance
   , maxOapiGetProcessInstBatchSize
   , ProcessInstListResponse(..)
@@ -124,6 +125,7 @@ instance ToJSON CcTiming where
 data FormComponentValue = FormCompValueText Text    -- ^ 普通文字输入框
                         | FormCompValueImages (NonEmpty (Either Text MediaId)) -- ^ 最多9张图片
                         | FormCompValueDetails (NonEmpty FormCompValueNameValues)
+                        deriving (Show)
 
 type FormCompValueNameValues = Map Text FormComponentValue
 
@@ -138,6 +140,12 @@ formComponentNameValueToJson (k, v) = object [ "name" .= k, "value" .= v ]
 
 formComponentNameValuesToJson :: Map Text FormComponentValue -> [Value]
 formComponentNameValuesToJson = map formComponentNameValueToJson . mapToList
+
+
+(@=) :: Text -> Text -> (Text, FormComponentValue)
+infix 3 @=
+(@=) n v = (n, FormCompValueText v)
+
 
 -- | 发起审批实例
 oapiCreateProcessInstance :: HttpCallMonad env m
