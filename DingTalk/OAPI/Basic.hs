@@ -1,6 +1,6 @@
 module DingTalk.OAPI.Basic
   ( OapiError(..), OapiErrorOrPayload(..), oapiNotFoundToMaybe
-  , catchOapiError
+  , catchOapiError, ignoreOapiError
   , oapiGetAccessToken, oapiAccessTokenTTL
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
   , AuthOrgEntiies(..), AuthScopes(..), oapiGetAccessTokenScopes
@@ -106,6 +106,10 @@ catchOapiError err_code f h =
            else throwError err
       )
 -- }}}1
+
+
+ignoreOapiError :: MonadError OapiError m => Int -> m () -> m ()
+ignoreOapiError ec f = catchOapiError ec f (return ())
 
 
 -- | 文档说 access token 有效期固定为 7200 秒，且每次有效期内重复获取会自动续期

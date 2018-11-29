@@ -10,5 +10,8 @@ oapiEcNotFound = 60121
 oapiEcCallbackAlreadyExists :: Int
 oapiEcCallbackAlreadyExists = 71006
 
+oapiEcCallbackDoesNotExist :: Int
+oapiEcCallbackDoesNotExist = 71007
+
 oapiEcInvalidIp :: Int
 oapiEcInvalidIp = 60020
