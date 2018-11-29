@@ -393,7 +393,8 @@ data ProcessTaskInfo = ProcessTaskInfo
   { processTaskInfoUserId     :: UserId
   , processTaskInfoStatus     :: ProcessTaskStatus
   , processTaskInfoResult     :: ProcessTaskResult
-  , processTaskInfoCreateTime :: LocalTime
+  , processTaskInfoCreateTime :: Maybe LocalTime
+  -- ^ 实测这有可能不出现．比如流程有两个环节时就会这样
   , processTaskInfoFinishTime :: Maybe LocalTime
   , processTaskInfoId         :: ProcessTaskId
   }
@@ -404,7 +405,7 @@ instance FromJSON ProcessTaskInfo where
                 ProcessTaskInfo <$> o .: "userid"
                                 <*> o .: "task_status"
                                 <*> o .: "task_result"
-                                <*> o .: "create_time"
+                                <*> o .:? "create_time"
                                 <*> o .:? "finish_time"
                                 <*> o .: "taskid"
 -- }}}1
