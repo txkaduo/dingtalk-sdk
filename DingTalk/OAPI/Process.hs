@@ -73,6 +73,12 @@ maxOapiGetProcessBatchSize = 100
 
 
 -- | 获取用户可见的审批模板
+-- XXX: 此接口的文档已从官网文档入口中消失，但页面还在
+-- https://open-doc.dingtalk.com/microapp/serverapi2/tcwmha
+-- 不知道是否将来会删除
+--
+-- XXX: 若接口的调用频率限制很严
+-- [Error] oapiSourceProcessListByUser failed: OapiError { errcode=88, errmsg="ding talk error[subcode=90002,submsg=您的服务器调用钉钉开放平台当前接口的所有请求都被暂时禁用了, apiPath(dingtalk.oapi.process.listbyuserid), 从 2018-12-09 15:01:10 到 2018-12-09 15:01:10 请求总次数超过了 100 次, 处罚将在 2018-12-09 15:01:11 结束.]" } @(main:Main tools/manage.hs:284:11)
 oapiGetProcessListByUser :: HttpCallMonad env m
                          => Maybe UserId
                          -> Int
@@ -92,16 +98,19 @@ oapiGetProcessListByUser m_user_id offset batch_size =
 
 
 oapiSourceProcessListByUser :: HttpCallMonad env m
-                            => Maybe UserId
+                            => Float  -- ^ seconds. delay between iterations
+                            -> Maybe UserId
                             -> Source (ExceptT OapiError (ReaderT AccessToken m)) ProcessInfo
 -- {{{1
-oapiSourceProcessListByUser m_user_id = loop 0
+oapiSourceProcessListByUser delay_sec m_user_id = loop 0
   where size = maxOapiGetProcessBatchSize
+        delay_us = round $ delay_sec * 1000 * 1000
+        delay = liftIO $ threadDelay delay_us
 
         loop offset = do
           resp <- lift $ ExceptT $ oapiGetProcessListByUser m_user_id offset size
           mapM_ yield (processListItems resp)
-          mapM_ loop (processListNextCursor resp)
+          mapM_ (\ x -> delay >> loop x) (processListNextCursor resp)
 -- }}}1
 
 

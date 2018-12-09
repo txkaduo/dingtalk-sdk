@@ -275,7 +275,7 @@ start opts api_env = flip runReaderT api_env $ do
                              Just txt -> CL.filter (isInfixOf txt . processInfoName)
 
       err_or_res <- flip runReaderT atk $ runExceptT $ do
-                      oapiSourceProcessListByUser Nothing
+                      oapiSourceProcessListByUser 0.5 Nothing
                         =$= filter_conduit
                         $$ CL.consume
 
