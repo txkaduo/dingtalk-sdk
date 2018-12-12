@@ -88,14 +88,15 @@ handlerCheckSnsReturnCodeState :: (MonadHandler m, MonadLogger m)
 -- {{{1
 handlerCheckSnsReturnCodeState app_id = do
   m_code <- lookupGetParam "code"
-  oauth_state <- liftM (fromMaybe "") $ lookupGetParam "state"
-  m_expected_state <- lookupSession (sessionKeyDingTalkAuthState app_id)
-  unless (m_expected_state == Just oauth_state) $ do
-      $logErrorS logSourceName $
-          "OAuth state check failed, got: " <> oauth_state
-      throwM $ HCError NotAuthenticated
+  forM m_code $ \ code -> do
+    oauth_state <- liftM (fromMaybe "") $ lookupGetParam "state"
+    m_expected_state <- lookupSession (sessionKeyDingTalkAuthState app_id)
+    unless (m_expected_state == Just oauth_state) $ do
+        $logErrorS logSourceName $
+            "OAuth state check failed, got: " <> oauth_state
+        throwM $ HCError NotAuthenticated
 
-  return $ fmap SnsTmpAuthCode m_code
+    return $ SnsTmpAuthCode code
 -- }}}1
 
 
@@ -172,7 +173,10 @@ handlerDingTalkLoginComeBack show_widget = do
                 fmap (union_id,) $ ExceptT $ runWithDingTalkAccessToken foundation $ oapiGetUserIdByUnionId union_id
 
               case err_or of
-                Right (_, Just x) -> return x
+                Right (_, Just user_id) -> do
+                  handlerSetSessionUserId corp_id user_id
+                  return user_id
+
                 Right (union_id, Nothing) -> do
                   $logErrorS logSourceName $ "Could not found UserId by UnionId: " <> toParamValue union_id
                   fail $ "钉钉接口错误，请稍后重试(UnionId Error)"
