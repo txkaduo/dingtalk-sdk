@@ -81,7 +81,7 @@ data ProcessInstanceChangeData =
       ProcessInstanceStartData
         { processInstanceStartInstanceId    :: ProcessInstanceId
         , processInstanceStartCorpId        :: CorpId
-        , processInstanceStartBizCategoryId :: BizCategoryId
+        , processInstanceStartBizCategoryId :: Maybe BizCategoryId
         , processInstanceStartTitle         :: Text
         , processInstanceStartApplicant     :: UserId
         , processInstanceStartUrl           :: Text
@@ -90,7 +90,7 @@ data ProcessInstanceChangeData =
     | ProcessInstanceFinishData
         { processInstanceFinishInstanceId    :: ProcessInstanceId
         , processInstanceFinishCorpId        :: CorpId
-        , processInstanceFinishBizCategoryId :: BizCategoryId
+        , processInstanceFinishBizCategoryId :: Maybe BizCategoryId
         , processInstanceFinishTitle         :: Text
         , processInstanceFinishApplicant     :: UserId
         , processInstanceFinishUrl           :: Text
@@ -106,7 +106,7 @@ instance FromJSON ProcessInstanceChangeData where
     case typ of
       "start" -> ProcessInstanceStartData <$> o .: "processInstanceId"
                                           <*> o .: "corpId"
-                                          <*> o .: "bizCategoryId"
+                                          <*> o .:? "bizCategoryId"
                                           <*> o .: "title"
                                           <*> o .: "staffId"
                                           <*> o .: "url"
@@ -114,7 +114,7 @@ instance FromJSON ProcessInstanceChangeData where
 
       "finish" -> ProcessInstanceFinishData <$> o .: "processInstanceId"
                                             <*> o .: "corpId"
-                                            <*> o .: "bizCategoryId"
+                                            <*> o .:? "bizCategoryId"
                                             <*> o .: "title"
                                             <*> o .: "staffId"
                                             <*> o .: "url"
