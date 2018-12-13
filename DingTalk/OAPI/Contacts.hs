@@ -6,7 +6,7 @@ module DingTalk.OAPI.Contacts
   , UserSimpleInfo(..), DeptUserSortOrder(..), oapiGetDeptUserSimpleList
   , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList
   , oapiSourceDeptUserSimpleInfo, oapiSourceDeptUserSimpleInfoRecursive
-  , DeptDetails(..), oapiGetDeptSubForest
+  , DeptDetails(..), oapiGetDeptInfoSubForest
   , oapiGetAdminDeptList, oapiGetDeptDetails
   , oapiDeptUserSimpleInfoMaxPageSize
   , oapiGetUserIdByUnionId
@@ -81,11 +81,11 @@ oapiGetSubDeptList recursive parent_id =
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "department"))
 
 
-oapiGetDeptSubForest :: HttpCallMonad env m
-                     => DeptId
-                     -> ReaderT AccessToken m (Either OapiError (Forest DeptInfo))
+oapiGetDeptInfoSubForest :: HttpCallMonad env m
+                         => DeptId
+                         -> ReaderT AccessToken m (Either OapiError (Forest DeptInfo))
 -- {{{1
-oapiGetDeptSubForest parent_id = runExceptT $ do
+oapiGetDeptInfoSubForest parent_id = runExceptT $ do
   ExceptT (oapiGetSubDeptList False parent_id) >>= mapM get_tree
   where
     get_tree p_dept_info = do

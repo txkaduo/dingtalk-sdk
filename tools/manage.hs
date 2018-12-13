@@ -261,10 +261,10 @@ start opts api_env = flip runReaderT api_env $ do
           putStrLn $ "Source Identifier: " <> fromMaybe "" (deptDetailsSourceIdentifier details)
 
     DeptSubForest m_dept_id -> do
-      err_or_res <- flip runReaderT atk $ oapiGetDeptSubForest (fromMaybe rootDeptId m_dept_id)
+      err_or_res <- flip runReaderT atk $ oapiGetDeptInfoSubForest (fromMaybe rootDeptId m_dept_id)
       case err_or_res of
         Left err -> do
-          $logError $ "oapiGetDeptSubForest failed: " <> utshow err
+          $logError $ "oapiGetDeptInfoSubForest failed: " <> utshow err
         Right sub_forest -> do
           putStrLn $ utshow sub_forest
 
