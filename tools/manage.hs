@@ -29,6 +29,7 @@ import DingTalk.Helpers
 data ManageCmd = Scopes
                | SearchUser Text
                | ShowUserDetailsById UserId
+               | SearchDept Text
                | DeptSubForest (Maybe DeptId)
                | ShowDeptDetails DeptId
                | UploadMedia MediaType FilePath
@@ -75,6 +76,10 @@ manageCmdParser = subparser $
   <> command "show-user-details-by-id"
     (info (helper <*> (pure ShowUserDetailsById <*> fmap (UserId . fromString) (argument str (metavar "USER_NAME"))))
           (progDesc "显示指定UserId用户的详情")
+    )
+  <> command "search-dept"
+    (info (helper <*> (pure SearchDept <*> fmap fromString (argument str (metavar "DEPT_NAME"))))
+          (progDesc "按名搜索部门")
     )
   <> command "dept-sub-forest"
     (info (helper <*> (pure DeptSubForest <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
@@ -213,6 +218,21 @@ start opts api_env = flip runReaderT api_env $ do
             putStrLn $ "User Hire Date: " <> utshow (userDetailsHiredTime user_details)
             putStrLn $ "Dept Ids: " <> utshow (userDetailsDepartments user_details)
             --}
+
+    SearchDept name -> do
+      err_or_res <- flip runReaderT atk $ oapiGetSubDeptList True rootDeptId
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "some api failed: " <> utshow err
+          liftIO exitFailure
+
+        Right all_dept_info_list -> do
+          let dept_info_list = filter (isInfixOf name . deptInfoName) all_dept_info_list
+          if null dept_info_list
+             then putStrLn "NOT FOUND"
+             else forM_ dept_info_list $ \ dept_info -> do
+                    putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty dept_info
 
     ShowUserDetailsById user_id -> do
       err_or_res <- flip runReaderT atk $ runExceptT $ do
