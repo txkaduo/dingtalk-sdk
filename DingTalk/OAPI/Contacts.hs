@@ -8,7 +8,7 @@ module DingTalk.OAPI.Contacts
   , oapiSourceDeptUserSimpleInfo, oapiSourceDeptUserSimpleInfoRecursive
   , DeptDetails(..), oapiGetDeptSubForest
   , oapiGetAdminDeptList, oapiGetDeptDetails
-  , oapiMaxPageSize
+  , oapiDeptUserSimpleInfoMaxPageSize
   , oapiGetUserIdByUnionId
   ) where
 
@@ -185,9 +185,9 @@ instance ParamValue DeptUserSortOrder where
 -- }}}1
 
 
--- | 分页时每页的最大数量．不知道是不是所有接口都有一样的限制
-oapiMaxPageSize :: Int
-oapiMaxPageSize = 100
+-- | 分页时每页的最大数量．oapiGetDeptUserSimpleList 专用
+oapiDeptUserSimpleInfoMaxPageSize :: Int
+oapiDeptUserSimpleInfoMaxPageSize = 100
 
 
 -- | 获取部门用户
@@ -219,7 +219,7 @@ oapiSourceDeptUserSimpleInfo :: HttpCallMonad env m
 -- {{{1
 oapiSourceDeptUserSimpleInfo m_sort_order parent_id = src Nothing
   where
-    size = oapiMaxPageSize
+    size = oapiDeptUserSimpleInfoMaxPageSize
 
     src m_offset = do
       let m_size_offset = (size,) <$> m_offset
