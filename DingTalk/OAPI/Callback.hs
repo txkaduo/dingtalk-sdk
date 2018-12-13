@@ -131,7 +131,7 @@ data ProcessTaskChangeData =
       ProcessTaskStartData
         { processTaskStartInstanceId    :: ProcessInstanceId
         , processTaskStartCorpId        :: CorpId
-        , processTaskStartBizCategoryId :: BizCategoryId
+        , processTaskStartBizCategoryId :: Maybe BizCategoryId
         , processTaskStartTitle         :: Text
         , processTaskStartStaff         :: UserId
         , processTaskStartCreatedTime   :: Timestamp
@@ -139,7 +139,7 @@ data ProcessTaskChangeData =
     | ProcessTaskFinishData
         { processTaskFinishInstanceId    :: ProcessInstanceId
         , processTaskFinishCorpId        :: CorpId
-        , processTaskFinishBizCategoryId :: BizCategoryId
+        , processTaskFinishBizCategoryId :: Maybe BizCategoryId
         , processTaskFinishTitle         :: Text
         , processTaskFinishStaff         :: UserId
         , processTaskFinishCreatedTime   :: Timestamp
@@ -156,7 +156,7 @@ instance FromJSON ProcessTaskChangeData where
     case typ of
       "start" -> ProcessTaskStartData <$> o .: "processInstanceId"
                                       <*> o .: "corpId"
-                                      <*> o .: "bizCategoryId"
+                                      <*> o .:? "bizCategoryId"
                                       <*> o .: "title"
                                       <*> o .: "staffId"
                                       <*> o .: "createTime"
@@ -165,7 +165,7 @@ instance FromJSON ProcessTaskChangeData where
         result <- o .: "result"
         ProcessTaskFinishData <$> o .: "processInstanceId"
                               <*> o .: "corpId"
-                              <*> o .: "bizCategoryId"
+                              <*> o .:? "bizCategoryId"
                               <*> o .: "title"
                               <*> o .: "staffId"
                               <*> o .: "createTime"
