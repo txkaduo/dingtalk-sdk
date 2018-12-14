@@ -5,6 +5,7 @@ module DingTalk.Helpers where
 import           ClassyPrelude
 import           Control.Lens         hiding ((.=))
 import           Control.Monad.Logger
+import qualified Control.Monad.Logger.CallStack as LCS
 import           Data.Aeson.Lens      (key)
 import qualified Data.Aeson           as A
 import qualified Data.Aeson.Text      as A
@@ -16,6 +17,8 @@ import           Data.List            ((!!))
 import qualified Data.Text            as T
 import           Network.Wreq hiding (Proxy)
 import           System.Random              (randomIO, randomRIO)
+
+import           GHC.Stack (HasCallStack)
 -- }}}1
 
 
@@ -188,6 +191,18 @@ instance Exception DatagramError
 
 logSourceName :: Text
 logSourceName = "dingtalk-sdk"
+
+
+logUnexpectedEmptyResult :: (MonadLogger m, HasCallStack, MonoFoldable a)
+                         => Text
+                         -> a
+                         -> m a
+-- {{{1
+logUnexpectedEmptyResult err_msg res = do
+  when (null res) $ LCS.logError err_msg
+  return res
+-- }}}1
+
 
 
 -- vim: set foldmethod=marker:

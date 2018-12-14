@@ -1,5 +1,6 @@
 module DingTalk.OAPI.Basic
   ( OapiError(..), OapiErrorOrPayload(..), oapiNotFoundToMaybe
+  , OapiRpcWithAtk, OapiRpcWithAtkExcept, OapiRpcWithAtkSource
   , catchOapiError, ignoreOapiError
   , oapiGetAccessToken, oapiAccessTokenTTL
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
@@ -20,6 +21,7 @@ import           Control.Monad.Reader (asks)
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import qualified Data.ByteString.Lazy as LB
+import           Data.Conduit
 import           Data.Proxy
 import           Network.Wreq hiding (Proxy)
 import           Network.Wreq.Types   (Postable)
@@ -49,6 +51,13 @@ instance FromJSON OapiError where
     OapiError <$> o .: "errcode"
               <*> o .: "errmsg"
 -- }}}1
+
+
+type OapiRpcWithAtk m a = ReaderT AccessToken m (Either OapiError a)
+
+type OapiRpcWithAtkExcept m a = ExceptT OapiError (ReaderT AccessToken m) a
+
+type OapiRpcWithAtkSource m a = Source (ExceptT OapiError (ReaderT AccessToken m)) a
 
 
 data OapiErrorOrPayload a = OapiErrorOrPayload { unOapiErrorOrPayload :: Either OapiError a }

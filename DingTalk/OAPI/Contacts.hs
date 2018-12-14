@@ -2,22 +2,29 @@
 module DingTalk.OAPI.Contacts
   ( oapiGetDeptListIds
   , DeptInfo(..), oapiGetSubDeptList
+  , oapiGetDeptInfoSubForest, oapiGetDeptInfoTree, oapiGetDeptSimpleInfo
   , Role(..), UserDetails(..), oapiGetUserDetails
   , UserSimpleInfo(..), DeptUserSortOrder(..), oapiGetDeptUserSimpleList
   , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList
   , oapiSourceDeptUserSimpleInfo, oapiSourceDeptUserSimpleInfoRecursive
-  , DeptDetails(..), oapiGetDeptInfoSubForest
+  , DeptInfoWithUser(..), oapiGetDeptInfoWithUseerForest, oapiGetDeptInfoWithUserTree
+  , DeptDetails(..), deptDetailsToInfo
   , oapiGetAdminDeptList, oapiGetDeptDetails
   , oapiDeptUserSimpleInfoMaxPageSize
   , oapiGetUserIdByUnionId
+  , oapiGetUserParentDeptIds, oapiGetDeptParentDeptIds
   ) where
 
 -- {{{1 imports
 import           ClassyPrelude
 import           Control.Monad.Except hiding (mapM_, mapM)
+import           Control.Monad.Trans.Maybe
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import           Data.Conduit
+import qualified Data.Conduit.List as CL
+import           Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as LNE
 import           Data.Tree
 import           Data.Proxy
 import           Text.Show.Unicode (ushow)
@@ -72,26 +79,66 @@ instance ToJSON DeptInfo where
 oapiGetSubDeptList :: HttpCallMonad env m
                    => Bool
                    -> DeptId
-                   -> ReaderT AccessToken m (Either OapiError [DeptInfo])
+                   -> OapiRpcWithAtk m (Maybe [DeptInfo])
+-- {{{1
 oapiGetSubDeptList recursive parent_id =
-  oapiGetCallWithAtk "/department/list"
-    [ "id" &= parent_id
-    , "fetch_child" &= recursive
-    ]
-    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "department"))
+  fmap oapiNotFoundToMaybe $
+    oapiGetCallWithAtk "/department/list"
+      [ "id" &= parent_id
+      , "fetch_child" &= recursive
+      ]
+      >>= return . fmap (AE.getSingObject (Proxy :: Proxy "department"))
+-- }}}1
 
 
 oapiGetDeptInfoSubForest :: HttpCallMonad env m
                          => DeptId
-                         -> ReaderT AccessToken m (Either OapiError (Forest DeptInfo))
+                         -> OapiRpcWithAtk m (Maybe (Forest DeptInfo))
 -- {{{1
-oapiGetDeptInfoSubForest parent_id = runExceptT $ do
-  ExceptT (oapiGetSubDeptList False parent_id) >>= mapM get_tree
+oapiGetDeptInfoSubForest parent_id = runExceptT $ runMaybeT $ do
+  MaybeT (ExceptT (oapiGetSubDeptList False parent_id)) >>= mapM get_tree
   where
     get_tree p_dept_info = do
-      sub_forest <- ExceptT (oapiGetSubDeptList False (deptInfoId p_dept_info))
-                      >>= mapM get_tree
+      let dept_id = deptInfoId p_dept_info
+      sub_depts <- lift (ExceptT (oapiGetSubDeptList False dept_id))
+                    >>= logUnexpectedEmptyResult
+                          ("oapiGetSubDeptList should not return Nothing for dept_id: " <> toParamValue dept_id)
+                    >>= return . fromMaybe []
+
+      sub_forest <- mapM get_tree sub_depts
       return $ Node p_dept_info sub_forest
+-- }}}1
+
+
+oapiGetDeptInfoTree :: HttpCallMonad env m
+                    => DeptId
+                    -> OapiRpcWithAtk m (Maybe (Tree DeptInfo))
+-- {{{1
+oapiGetDeptInfoTree dept_id = runExceptT $ runMaybeT $ do
+  dept_info <- MaybeT $ ExceptT $ oapiGetDeptSimpleInfo dept_id
+  sub_forest <- MaybeT $ ExceptT $ oapiGetDeptInfoSubForest dept_id
+  return $ Node dept_info sub_forest
+-- }}}1
+
+
+-- | 钉钉不提供能根据dept id直接取得 DeptInfo 的接口，
+-- 这里用 oapiGetDeptParentDeptIds/oapiGetDeptDetails 间接实现
+-- XXX: 若此部门的兄弟部门非常多，就有一点浪费
+oapiGetDeptSimpleInfo :: HttpCallMonad env m
+                      => DeptId
+                      -> OapiRpcWithAtk m (Maybe DeptInfo)
+-- {{{1
+oapiGetDeptSimpleInfo dept_id = runExceptT $ do
+  if dept_id == rootDeptId
+     then fmap (fmap  deptDetailsToInfo) $ ExceptT (oapiGetDeptDetails dept_id)
+     else do
+          parent_ids <- ExceptT $ oapiGetDeptParentDeptIds dept_id
+          fmap join $
+            forM (listToMaybe $ LNE.tail parent_ids) $ \ real_parent_id -> do
+              ExceptT (oapiGetSubDeptList False real_parent_id)
+                >>= logUnexpectedEmptyResult
+                      ("oapiGetSubDeptList should not return Nothing for dept_id: " <> toParamValue real_parent_id)
+                >>= return . find ((== dept_id) . deptInfoId) . fromMaybe []
 -- }}}1
 
 
@@ -139,6 +186,17 @@ instance ToJSON DeptDetails where
               , Just $ "deptManagerUseridList" .= intercalate "|" (map toParamValue deptDetailsManagerUserIds)
               , ("sourceIdentifier" .=) <$> deptDetailsSourceIdentifier
               ]
+-- }}}1
+
+deptDetailsToInfo :: DeptDetails -> DeptInfo
+-- {{{1
+deptDetailsToInfo (DeptDetails {..}) =
+  DeptInfo
+    deptDetailsId
+    deptDetailsParentId
+    deptDetailsName
+    deptDetailsCreateDeptGroup
+    deptDetailsAutoAddUser
 -- }}}1
 
 
@@ -236,8 +294,60 @@ oapiSourceDeptUserSimpleInfoRecursive :: HttpCallMonad env m
                                       => DeptId
                                       -> Source (ExceptT OapiError (ReaderT AccessToken m)) UserSimpleInfo
 oapiSourceDeptUserSimpleInfoRecursive dept_id = do
-  sub_dept_ids <- fmap (map deptInfoId) $ lift $ ExceptT $ oapiGetSubDeptList True dept_id
+  sub_dept_ids <- fmap (map deptInfoId . fromMaybe []) $ lift $ ExceptT $ oapiGetSubDeptList True dept_id
   mconcat (map (oapiSourceDeptUserSimpleInfo Nothing) $ dept_id : sub_dept_ids)
+
+
+-- | 收集了 DeptInfo & UserSimpleInfo
+data DeptInfoWithUser = DeptInfoWithUser
+  { deptInfoUserDeptInfo :: DeptInfo
+  , deptInfoUserUsers    :: [UserSimpleInfo]
+  }
+
+-- {{{1 instances
+instance FromJSON DeptInfoWithUser where
+  parseJSON = withObject "DeptInfoWithUser" $ \ o -> do
+                DeptInfoWithUser <$> o .: "info"
+                                 <*> o .: "users"
+
+instance ToJSON DeptInfoWithUser where
+  toJSON (DeptInfoWithUser {..}) =
+    object [ "info" .= deptInfoUserDeptInfo
+           , "users" .= deptInfoUserUsers
+           ]
+-- }}}1
+
+
+oapiGetDeptInfoWithUseerForest :: HttpCallMonad env m
+                               => Maybe DeptUserSortOrder
+                               -> DeptId
+                               -> OapiRpcWithAtk m (Maybe (Forest DeptInfoWithUser))
+-- {{{1
+oapiGetDeptInfoWithUseerForest m_dept_user_order parent_dept_id = runExceptT $ runMaybeT $ do
+  sub_dept_infos <- MaybeT $ ExceptT $ oapiGetSubDeptList False parent_dept_id
+  forM sub_dept_infos $ \ dept_info -> do
+    let dept_id = deptInfoId dept_info
+    users <- lift $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id $$ CL.consume
+    sub_forest <- lift (ExceptT $ oapiGetDeptInfoWithUseerForest m_dept_user_order dept_id)
+                    >>= logUnexpectedEmptyResult
+                          ("oapiGetDeptInfoWithUseerForest should not return Nothing for dept_id: " <> toParamValue dept_id)
+                    >>= return . fromMaybe []
+
+    return $ Node (DeptInfoWithUser dept_info users) sub_forest
+-- }}}1
+
+
+oapiGetDeptInfoWithUserTree :: HttpCallMonad env m
+                            => Maybe DeptUserSortOrder
+                            -> DeptId
+                            -> OapiRpcWithAtk m (Maybe (Tree DeptInfoWithUser))
+-- {{{1
+oapiGetDeptInfoWithUserTree m_dept_user_order dept_id = runExceptT $ runMaybeT $ do
+  dept_info <- MaybeT $ ExceptT $ oapiGetDeptSimpleInfo dept_id
+  users <- lift $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id $$ CL.consume
+  sub_forest <- MaybeT $ ExceptT $ oapiGetDeptInfoWithUseerForest m_dept_user_order dept_id
+  return $ Node (DeptInfoWithUser dept_info users) sub_forest
+-- }}}1
 
 
 data Role = Role
@@ -397,6 +507,28 @@ oapiGetUserIdByUnionId union_id =
       [ "unionid" &= union_id
       ]
       >>= return . fmap (AE.getSingObject (Proxy :: Proxy "userid"))
+
+
+-- | 查询指定用户的所有上级父部门路径
+oapiGetUserParentDeptIds :: HttpCallMonad env m
+                         => UserId
+                         -> ReaderT AccessToken m (Either OapiError [NonEmpty DeptId])
+oapiGetUserParentDeptIds user_id =
+  oapiGetCallWithAtk "/department/list_parent_depts"
+    [ "userId" &= user_id
+    ]
+    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "department"))
+
+
+-- | 查询部门的所有上级父部门路径
+oapiGetDeptParentDeptIds :: HttpCallMonad env m
+                         => DeptId
+                         -> ReaderT AccessToken m (Either OapiError (NonEmpty DeptId))
+oapiGetDeptParentDeptIds dept_id =
+  oapiGetCallWithAtk "/department/list_parent_depts_by_dept"
+    [ "id" &= dept_id
+    ]
+    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "parentIds"))
 
 
 -- vim: set foldmethod=marker:

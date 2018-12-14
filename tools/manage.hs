@@ -12,6 +12,7 @@ import qualified Data.Conduit.List as CL
 import           Data.List.NonEmpty (nonEmpty)
 import qualified Data.Text as T
 import           Data.Time.Clock.POSIX
+import           Data.Tree
 import           Network.HTTP.Client   (streamFile)
 import           Network.Wreq         (responseBody, responseHeader)
 import qualified Network.Wreq.Session  as WS
@@ -30,7 +31,8 @@ data ManageCmd = Scopes
                | SearchUser Text
                | ShowUserDetailsById UserId
                | SearchDept Text
-               | DeptSubForest (Maybe DeptId)
+               | DeptTree (Maybe DeptId)
+               | DeptTreeWithUser (Maybe DeptId)
                | ShowDeptDetails DeptId
                | UploadMedia MediaType FilePath
                | DownloadMedia MediaId
@@ -81,9 +83,13 @@ manageCmdParser = subparser $
     (info (helper <*> (pure SearchDept <*> fmap fromString (argument str (metavar "DEPT_NAME"))))
           (progDesc "按名搜索部门")
     )
-  <> command "dept-sub-forest"
-    (info (helper <*> (pure DeptSubForest <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
-          (progDesc "显示部门树")
+  <> command "dept-tree"
+    (info (helper <*> (pure DeptTree <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
+          (progDesc "显示部门的节点树")
+    )
+  <> command "dept-tree-with-user"
+    (info (helper <*> (pure DeptTreeWithUser <*> optional (fmap DeptId (argument auto (metavar "DEPT_ID")))))
+          (progDesc "显示部门的带用户列表的节点树")
     )
   <> command "show-dept"
     (info (helper <*> (pure ShowDeptDetails <*> fmap DeptId (argument auto (metavar "DEPT_ID"))))
@@ -227,7 +233,10 @@ start opts api_env = flip runReaderT api_env $ do
           $logError $ "some api failed: " <> utshow err
           liftIO exitFailure
 
-        Right all_dept_info_list -> do
+        Right Nothing -> do
+          putStrLn "oapiGetSubDeptList failed for rootDeptId: NOT FOUND"
+
+        Right (Just all_dept_info_list) -> do
           let dept_info_list = filter (isInfixOf name . deptInfoName) all_dept_info_list
           if null dept_info_list
              then putStrLn "NOT FOUND"
@@ -260,13 +269,26 @@ start opts api_env = flip runReaderT api_env $ do
           putStrLn $ "Manager User Ids" <> utshow (deptDetailsManagerUserIds details)
           putStrLn $ "Source Identifier: " <> fromMaybe "" (deptDetailsSourceIdentifier details)
 
-    DeptSubForest m_dept_id -> do
-      err_or_res <- flip runReaderT atk $ oapiGetDeptInfoSubForest (fromMaybe rootDeptId m_dept_id)
+    DeptTree m_dept_id -> do
+      err_or_res <- flip runReaderT atk $ oapiGetDeptInfoTree (fromMaybe rootDeptId m_dept_id)
       case err_or_res of
         Left err -> do
           $logError $ "oapiGetDeptInfoSubForest failed: " <> utshow err
-        Right sub_forest -> do
-          putStrLn $ utshow sub_forest
+        Right Nothing -> putStrLn "NOT FOUND"
+        Right (Just tree) -> do
+          let str_tree = fmap (unpack . decodeUtf8 . AP.encodePretty) tree
+          putStrLn $ fromString $ drawTree str_tree
+
+    DeptTreeWithUser m_dept_id -> do
+      let dept_id = fromMaybe rootDeptId m_dept_id
+      err_or_res <- flip runReaderT atk $ oapiGetDeptInfoWithUserTree Nothing dept_id
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiGetDeptInfoWithUseerForest failed: " <> utshow err
+        Right Nothing -> putStrLn "NOT FOUND"
+        Right (Just tree) -> do
+          let str_tree = fmap (unpack . decodeUtf8 . AP.encodePretty) tree
+          putStrLn $ fromString $ drawTree str_tree
 
     UploadMedia media_type file_path -> do
       file_body <- liftIO $ streamFile file_path
