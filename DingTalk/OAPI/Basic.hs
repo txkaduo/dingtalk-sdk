@@ -157,7 +157,7 @@ instance FromJSON UserInfoByCodeResp where
 
 oapiGetUserInfoByAuthCode :: HttpCallMonad env m
                           => Text
-                          -> ReaderT AccessToken m (Either OapiError UserInfoByCodeResp)
+                          -> OapiRpcWithAtk m UserInfoByCodeResp
 -- {{{1
 oapiGetUserInfoByAuthCode auth_code = do
   oapiGetCallWithAtk "/user/getuserinfo"
@@ -193,7 +193,7 @@ instance FromJSON AuthScopes where
 
 
 oapiGetAccessTokenScopes :: HttpCallMonad env m
-                         => ReaderT AccessToken m (Either OapiError AuthScopes)
+                         => OapiRpcWithAtk m AuthScopes
 oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
 
@@ -247,7 +247,7 @@ oapiGetCallWithAtkLike url_path kv_list = do
 oapiGetCallWithAtk :: (HttpCallMonad env m, FromJSON a)
                    => String
                    -> ParamKvList
-                   -> ReaderT AccessToken m (Either OapiError a)
+                   -> OapiRpcWithAtk m a
 oapiGetCallWithAtk = oapiGetCallWithAtkLike
 
 
@@ -284,7 +284,7 @@ oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
                     => String
                     -> ParamKvList
                     -> b
-                    -> ReaderT AccessToken m (Either OapiError a)
+                    -> OapiRpcWithAtk m a
 oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
 

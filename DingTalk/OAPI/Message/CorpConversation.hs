@@ -23,7 +23,7 @@ oapiCorpConversationAsyncSend :: HttpCallMonad env m
                               => AgentId
                               -> CorpConversationReceiver
                               -> SomeMessage
-                              -> ReaderT AccessToken m (Either OapiError CorpConversationAsyncSendId)
+                              -> OapiRpcWithAtk m CorpConversationAsyncSendId
 -- {{{1
 oapiCorpConversationAsyncSend agent_id receiver msg =
   oapiPostCallWithAtk "/topapi/message/corpconversation/asyncsend_v2" []

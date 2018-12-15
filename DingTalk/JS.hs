@@ -44,7 +44,7 @@ instance FromJSON JsApiTicketResp where
 -- 2.在ISV应用中，在jsticket未过期的时候，也就是两小时之内通过get_jsapi_ticket获取到的jsticket和老的jsticket值相同，只是过期时间延长到2小时。
 -- 3.jsticket是以一个企业对应一个，所以在使用的时候需要将jsticket以企业为维度进行缓存下来（设置缓存过期时间2小时），并不需要每次都通过接口拉取。
 oapiGetJsApiTicket :: HttpCallMonad env m
-                   => ReaderT AccessToken m (Either OapiError JsApiTicketResp)
+                   => OapiRpcWithAtk m JsApiTicketResp
 oapiGetJsApiTicket = oapiGetCallWithAtk "/get_jsapi_ticket"
     [ "type" &= asText "jsapi"
     ]

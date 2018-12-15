@@ -83,7 +83,7 @@ oapiGetProcessListByUser :: HttpCallMonad env m
                          => Maybe UserId
                          -> Int
                          -> Int
-                         -> ReaderT AccessToken m (Either OapiError ProcessListResponse)
+                         -> OapiRpcWithAtk m ProcessListResponse
 -- {{{1
 oapiGetProcessListByUser m_user_id offset batch_size =
   oapiPostCallWithAtk "/topapi/process/listbyuserid"
@@ -100,7 +100,7 @@ oapiGetProcessListByUser m_user_id offset batch_size =
 oapiSourceProcessListByUser :: HttpCallMonad env m
                             => Float  -- ^ seconds. delay between iterations
                             -> Maybe UserId
-                            -> Source (ExceptT OapiError (ReaderT AccessToken m)) ProcessInfo
+                            -> OapiRpcWithAtkSource m ProcessInfo
 -- {{{1
 oapiSourceProcessListByUser delay_sec m_user_id = loop 0
   where size = maxOapiGetProcessBatchSize
@@ -165,7 +165,7 @@ oapiCreateProcessInstance :: HttpCallMonad env m
                           -> NonEmpty UserId  -- ^ 审批人
                           -> Maybe (NonEmpty UserId, CcTiming) -- ^ 抄送人
                           -> FormCompValueNameValues
-                          -> ReaderT AccessToken m (Either OapiError ProcessInstanceId)
+                          -> OapiRpcWithAtk m ProcessInstanceId
 -- {{{1
 oapiCreateProcessInstance m_agent_id proc_code user_id dept_id approvers m_cc_info form_vals = do
   oapiPostCallWithAtk "/topapi/processinstance/create"
@@ -211,7 +211,7 @@ oapiGetProcessInstanceIdList :: HttpCallMonad env m
                              -> Maybe (NonEmpty UserId)
                              -> Int
                              -> Int
-                             -> ReaderT AccessToken m (Either OapiError ProcessInstListResponse)
+                             -> OapiRpcWithAtk m ProcessInstListResponse
 -- {{{1
 oapiGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids offset batch_size =
   oapiPostCallWithAtk "/topapi/processinstance/listids"
@@ -233,7 +233,7 @@ oapiSourceProcessInstId :: HttpCallMonad env m
                         -> Timestamp
                         -> Maybe Timestamp
                         -> Maybe (NonEmpty UserId)
-                        -> Source (ExceptT OapiError (ReaderT AccessToken m)) ProcessInstanceId
+                        -> OapiRpcWithAtkSource m ProcessInstanceId
 -- {{{1
 oapiSourceProcessInstId proc_code start_time m_end_time m_user_ids = loop 0
   where size = maxOapiGetProcessInstBatchSize
@@ -485,7 +485,7 @@ processInstInfoFormLookup n =
 -- | 获取单个审批实例
 oapiGetProcessInstanceInfo :: HttpCallMonad env m
                            => ProcessInstanceId
-                           -> ReaderT AccessToken m (Either OapiError ProcessInstInfo)
+                           -> OapiRpcWithAtk m ProcessInstInfo
 -- {{{1
 oapiGetProcessInstanceInfo procss_id =
   oapiPostCallWithAtk "/topapi/processinstance/get"
@@ -500,7 +500,7 @@ oapiGetProcessInstanceInfo procss_id =
 -- | 获取用户待审批数量
 oapiGetUserProcessInstanceToDo :: HttpCallMonad env m
                                => UserId
-                               -> ReaderT AccessToken m (Either OapiError Int)
+                               -> OapiRpcWithAtk m Int
 -- {{{1
 oapiGetUserProcessInstanceToDo user_id =
   oapiPostCallWithAtk "/topapi/process/gettodonum"

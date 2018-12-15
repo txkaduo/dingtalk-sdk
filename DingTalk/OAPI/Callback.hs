@@ -299,7 +299,7 @@ oapiRegisterCallback :: HttpCallMonad env m
                      -> CallbackToken
                      -> Text  -- ^ URL
                      -> NonEmpty SomeCallbackEvent
-                     -> ReaderT AccessToken m (Either OapiError ())
+                     -> OapiRpcWithAtk m ()
 -- {{{1
 oapiRegisterCallback aes_key token url tags =
   oapiPostCallWithAtk "/call_back/register_call_back"
@@ -320,7 +320,7 @@ oapiUpdateCallback :: HttpCallMonad env m
                    -> CallbackToken
                    -> Text  -- ^ URL
                    -> NonEmpty SomeCallbackEvent
-                   -> ReaderT AccessToken m (Either OapiError ())
+                   -> OapiRpcWithAtk m ()
 -- {{{1
 oapiUpdateCallback aes_key token url tags =
   oapiPostCallWithAtk "/call_back/update_call_back"
@@ -341,7 +341,7 @@ oapiRegisterOrUpdateCallback :: HttpCallMonad env m
                              -> CallbackToken
                              -> Text  -- ^ URL
                              -> NonEmpty SomeCallbackEvent
-                             -> ReaderT AccessToken m (Either OapiError ())
+                             -> OapiRpcWithAtk m ()
 -- {{{1
 oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
   catchOapiError oapiEcCallbackAlreadyExists
@@ -351,7 +351,7 @@ oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
 
 
 oapiDeleteCallback :: HttpCallMonad env m
-                   => ReaderT AccessToken m (Either OapiError ())
+                   => OapiRpcWithAtk m ()
 oapiDeleteCallback =
   oapiGetCallWithAtk "/call_back/delete_call_back" []
     >>= return . right unUnit
@@ -394,7 +394,7 @@ instance FromJSON CallbackGetFailedResponse where
 
 
 oapiGetCallbackFailedList :: HttpCallMonad env m
-                          => ReaderT AccessToken m (Either OapiError CallbackGetFailedResponse)
+                          => OapiRpcWithAtk m CallbackGetFailedResponse
 oapiGetCallbackFailedList =
   oapiGetCallWithAtk "/call_back/get_call_back_failed_result" []
 

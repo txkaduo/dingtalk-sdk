@@ -37,7 +37,7 @@ import DingTalk.Helpers
 -- | 获取部门ID列表．不受授权范围限制
 oapiGetDeptListIds :: HttpCallMonad env m
                    => DeptId
-                   -> ReaderT AccessToken m (Either OapiError [ DeptId ])
+                   -> OapiRpcWithAtk m [ DeptId ]
 oapiGetDeptListIds parent_id =
   oapiGetCallWithAtk "/department/list_ids"
     [ "id" &= parent_id
@@ -202,7 +202,7 @@ deptDetailsToInfo (DeptDetails {..}) =
 
 oapiGetDeptDetails :: HttpCallMonad env m
                    => DeptId
-                   -> ReaderT AccessToken m (Either OapiError (Maybe DeptDetails))
+                   -> OapiRpcWithAtk m (Maybe DeptDetails)
 oapiGetDeptDetails dept_id = do
   fmap oapiNotFoundToMaybe $
     oapiGetCallWithAtk "/department/get" [ "id" &= dept_id ]
@@ -254,7 +254,7 @@ oapiGetDeptUserSimpleList :: HttpCallMonad env m
                           -> Maybe (Int, Int)
                           -- ^ paging: size, offset
                           -> DeptId
-                          -> ReaderT AccessToken m (Either OapiError ([UserSimpleInfo], Bool))
+                          -> OapiRpcWithAtk m ([UserSimpleInfo], Bool)
 -- {{{1
 oapiGetDeptUserSimpleList m_sort_order m_size_offset parent_id = runExceptT $ do
   jv <- ExceptT $ oapiGetCallWithAtk "/user/simplelist" params
@@ -273,7 +273,7 @@ oapiGetDeptUserSimpleList m_sort_order m_size_offset parent_id = runExceptT $ do
 oapiSourceDeptUserSimpleInfo :: HttpCallMonad env m
                              => Maybe DeptUserSortOrder
                              -> DeptId
-                             -> Source (ExceptT OapiError (ReaderT AccessToken m)) UserSimpleInfo
+                             -> OapiRpcWithAtkSource m UserSimpleInfo
 -- {{{1
 oapiSourceDeptUserSimpleInfo m_sort_order parent_id = src Nothing
   where
@@ -292,7 +292,7 @@ oapiSourceDeptUserSimpleInfo m_sort_order parent_id = src Nothing
 
 oapiSourceDeptUserSimpleInfoRecursive :: HttpCallMonad env m
                                       => DeptId
-                                      -> Source (ExceptT OapiError (ReaderT AccessToken m)) UserSimpleInfo
+                                      -> OapiRpcWithAtkSource m UserSimpleInfo
 oapiSourceDeptUserSimpleInfoRecursive dept_id = do
   sub_dept_ids <- fmap (map deptInfoId . fromMaybe []) $ lift $ ExceptT $ oapiGetSubDeptList True dept_id
   mconcat (map (oapiSourceDeptUserSimpleInfo Nothing) $ dept_id : sub_dept_ids)
@@ -435,7 +435,7 @@ instance ToJSON UserDetails where
 
 oapiGetUserDetails :: HttpCallMonad env m
                    => UserId
-                   -> ReaderT AccessToken m (Either OapiError (Maybe UserDetails))
+                   -> OapiRpcWithAtk m (Maybe UserDetails)
 oapiGetUserDetails user_id =
   fmap oapiNotFoundToMaybe $
     oapiGetCallWithAtk "/user/get"
@@ -480,7 +480,7 @@ instance ToJSON AdminSimpleInfo where
 
 -- | 获取管理员列表．
 oapiGetAdminList :: HttpCallMonad env m
-                 => ReaderT AccessToken m (Either OapiError [AdminSimpleInfo])
+                 => OapiRpcWithAtk m [AdminSimpleInfo]
 oapiGetAdminList =
   oapiGetCallWithAtk "/user/get_admin" []
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "admin_list"))
@@ -490,7 +490,7 @@ oapiGetAdminList =
 -- | 获取管理员通讯录权限范围
 oapiGetAdminDeptList :: HttpCallMonad env m
                      => UserId
-                     -> ReaderT AccessToken m (Either OapiError [DeptId])
+                     -> OapiRpcWithAtk m [DeptId]
 oapiGetAdminDeptList user_id =
   oapiGetCallWithAtk "/user/get_admin_scope"
     [ "userid" &= user_id
@@ -500,7 +500,7 @@ oapiGetAdminDeptList user_id =
 
 oapiGetUserIdByUnionId :: HttpCallMonad env m
                        => UnionId
-                       -> ReaderT AccessToken m (Either OapiError (Maybe UserId))
+                       -> OapiRpcWithAtk m (Maybe UserId)
 oapiGetUserIdByUnionId union_id =
   fmap oapiNotFoundToMaybe $
     oapiGetCallWithAtk "/user/getUseridByUnionid"
@@ -512,7 +512,7 @@ oapiGetUserIdByUnionId union_id =
 -- | 查询指定用户的所有上级父部门路径
 oapiGetUserParentDeptIds :: HttpCallMonad env m
                          => UserId
-                         -> ReaderT AccessToken m (Either OapiError [NonEmpty DeptId])
+                         -> OapiRpcWithAtk m [NonEmpty DeptId]
 oapiGetUserParentDeptIds user_id =
   oapiGetCallWithAtk "/department/list_parent_depts"
     [ "userId" &= user_id
@@ -523,7 +523,7 @@ oapiGetUserParentDeptIds user_id =
 -- | 查询部门的所有上级父部门路径
 oapiGetDeptParentDeptIds :: HttpCallMonad env m
                          => DeptId
-                         -> ReaderT AccessToken m (Either OapiError (NonEmpty DeptId))
+                         -> OapiRpcWithAtk m (NonEmpty DeptId)
 oapiGetDeptParentDeptIds dept_id =
   oapiGetCallWithAtk "/department/list_parent_depts_by_dept"
     [ "id" &= dept_id
