@@ -7,7 +7,7 @@ module DingTalk.OAPI.Contacts
   , UserSimpleInfo(..), DeptUserSortOrder(..), oapiGetDeptUserSimpleList
   , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList
   , oapiSourceDeptUserSimpleInfo, oapiSourceDeptUserSimpleInfoRecursive
-  , DeptInfoWithUser(..), oapiGetDeptInfoWithUseerForest, oapiGetDeptInfoWithUserTree
+  , DeptInfoWithUser(..), oapiGetDeptInfoWithUserForest, oapiGetDeptInfoWithUserTree
   , DeptDetails(..), deptDetailsToInfo
   , oapiGetAdminDeptList, oapiGetDeptDetails
   , oapiDeptUserSimpleInfoMaxPageSize
@@ -318,19 +318,19 @@ instance ToJSON DeptInfoWithUser where
 -- }}}1
 
 
-oapiGetDeptInfoWithUseerForest :: HttpCallMonad env m
-                               => Maybe DeptUserSortOrder
-                               -> DeptId
-                               -> OapiRpcWithAtk m (Maybe (Forest DeptInfoWithUser))
+oapiGetDeptInfoWithUserForest :: HttpCallMonad env m
+                              => Maybe DeptUserSortOrder
+                              -> DeptId
+                              -> OapiRpcWithAtk m (Maybe (Forest DeptInfoWithUser))
 -- {{{1
-oapiGetDeptInfoWithUseerForest m_dept_user_order parent_dept_id = runExceptT $ runMaybeT $ do
+oapiGetDeptInfoWithUserForest m_dept_user_order parent_dept_id = runExceptT $ runMaybeT $ do
   sub_dept_infos <- MaybeT $ ExceptT $ oapiGetSubDeptList False parent_dept_id
   forM sub_dept_infos $ \ dept_info -> do
     let dept_id = deptInfoId dept_info
     users <- lift $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id $$ CL.consume
-    sub_forest <- lift (ExceptT $ oapiGetDeptInfoWithUseerForest m_dept_user_order dept_id)
+    sub_forest <- lift (ExceptT $ oapiGetDeptInfoWithUserForest m_dept_user_order dept_id)
                     >>= logUnexpectedEmptyResult
-                          ("oapiGetDeptInfoWithUseerForest should not return Nothing for dept_id: " <> toParamValue dept_id)
+                          ("oapiGetDeptInfoWithUserForest should not return Nothing for dept_id: " <> toParamValue dept_id)
                     >>= return . fromMaybe []
 
     return $ Node (DeptInfoWithUser dept_info users) sub_forest
@@ -345,7 +345,7 @@ oapiGetDeptInfoWithUserTree :: HttpCallMonad env m
 oapiGetDeptInfoWithUserTree m_dept_user_order dept_id = runExceptT $ runMaybeT $ do
   dept_info <- MaybeT $ ExceptT $ oapiGetDeptSimpleInfo dept_id
   users <- lift $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id $$ CL.consume
-  sub_forest <- MaybeT $ ExceptT $ oapiGetDeptInfoWithUseerForest m_dept_user_order dept_id
+  sub_forest <- MaybeT $ ExceptT $ oapiGetDeptInfoWithUserForest m_dept_user_order dept_id
   return $ Node (DeptInfoWithUser dept_info users) sub_forest
 -- }}}1
 

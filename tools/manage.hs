@@ -284,7 +284,7 @@ start opts api_env = flip runReaderT api_env $ do
       err_or_res <- flip runReaderT atk $ oapiGetDeptInfoWithUserTree Nothing dept_id
       case err_or_res of
         Left err -> do
-          $logError $ "oapiGetDeptInfoWithUseerForest failed: " <> utshow err
+          $logError $ "oapiGetDeptInfoWithUserForest failed: " <> utshow err
         Right Nothing -> putStrLn "NOT FOUND"
         Right (Just tree) -> do
           let str_tree = fmap (unpack . decodeUtf8 . AP.encodePretty) tree
