@@ -4,7 +4,7 @@ module DingTalk.OAPI.Process
   , oapiGetProcessListByUser
   , oapiSourceProcessListByUser
   , CcTiming(..), FormComponentValue(..), FormCompValueNameValues
-  , (@=)
+  , (@=), (@=!), (@=?)
   , oapiCreateProcessInstance
   , maxOapiGetProcessInstBatchSize
   , ProcessInstListResponse(..)
@@ -155,6 +155,13 @@ formComponentNameValuesToJson = map formComponentNameValueToJson . mapToList
 infix 3 @=
 (@=) n v = (n, FormCompValueText v)
 
+infix 3 @=!, @=?
+
+(@=!) :: Text -> Text -> Maybe (Text, FormComponentValue)
+(@=!) = (. Just) . (@=?)
+
+(@=?) :: Text -> Maybe Text -> Maybe (Text, FormComponentValue)
+(@=?) = fmap . (@=)
 
 -- | 发起审批实例
 oapiCreateProcessInstance :: HttpCallMonad env m
