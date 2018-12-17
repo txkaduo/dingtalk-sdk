@@ -1,5 +1,6 @@
 module DingTalk.OAPI.Basic
   ( OapiError(..), OapiErrorOrPayload(..), oapiNotFoundToMaybe
+  , OapiRpcWithAtk, OapiRpcWithAtkExcept, OapiRpcWithAtkSource
   , catchOapiError, ignoreOapiError
   , oapiGetAccessToken, oapiAccessTokenTTL
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
@@ -20,6 +21,7 @@ import           Control.Monad.Reader (asks)
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import qualified Data.ByteString.Lazy as LB
+import           Data.Conduit
 import           Data.Proxy
 import           Network.Wreq hiding (Proxy)
 import           Network.Wreq.Types   (Postable)
@@ -49,6 +51,13 @@ instance FromJSON OapiError where
     OapiError <$> o .: "errcode"
               <*> o .: "errmsg"
 -- }}}1
+
+
+type OapiRpcWithAtk m a = ReaderT AccessToken m (Either OapiError a)
+
+type OapiRpcWithAtkExcept m a = ExceptT OapiError (ReaderT AccessToken m) a
+
+type OapiRpcWithAtkSource m a = Source (ExceptT OapiError (ReaderT AccessToken m)) a
 
 
 data OapiErrorOrPayload a = OapiErrorOrPayload { unOapiErrorOrPayload :: Either OapiError a }
@@ -148,7 +157,7 @@ instance FromJSON UserInfoByCodeResp where
 
 oapiGetUserInfoByAuthCode :: HttpCallMonad env m
                           => Text
-                          -> ReaderT AccessToken m (Either OapiError UserInfoByCodeResp)
+                          -> OapiRpcWithAtk m UserInfoByCodeResp
 -- {{{1
 oapiGetUserInfoByAuthCode auth_code = do
   oapiGetCallWithAtk "/user/getuserinfo"
@@ -184,7 +193,7 @@ instance FromJSON AuthScopes where
 
 
 oapiGetAccessTokenScopes :: HttpCallMonad env m
-                         => ReaderT AccessToken m (Either OapiError AuthScopes)
+                         => OapiRpcWithAtk m AuthScopes
 oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
 
@@ -238,7 +247,7 @@ oapiGetCallWithAtkLike url_path kv_list = do
 oapiGetCallWithAtk :: (HttpCallMonad env m, FromJSON a)
                    => String
                    -> ParamKvList
-                   -> ReaderT AccessToken m (Either OapiError a)
+                   -> OapiRpcWithAtk m a
 oapiGetCallWithAtk = oapiGetCallWithAtkLike
 
 
@@ -275,7 +284,7 @@ oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
                     => String
                     -> ParamKvList
                     -> b
-                    -> ReaderT AccessToken m (Either OapiError a)
+                    -> OapiRpcWithAtk m a
 oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
 

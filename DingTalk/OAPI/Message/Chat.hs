@@ -29,7 +29,7 @@ oapiChatCreate :: HttpCallMonad env m
                => Text
                -> Bool    -- ^ 新成员是否可以查看聊天历史消息
                -> NonEmpty UserId -- ^ first one is the owner
-               -> ReaderT AccessToken m (Either OapiError ChatCreateResp)
+               -> OapiRpcWithAtk m ChatCreateResp
 oapiChatCreate name show_history (owner :| user_id_list)  =
   oapiPostCallWithAtk "/chat/create" []
     (object [ "name" .= name, "showHistoryType" .= bool (asText "0") "1" show_history
@@ -41,7 +41,7 @@ oapiChatCreate name show_history (owner :| user_id_list)  =
 oapiChatSend :: HttpCallMonad env m
              => ChatId
              -> SomeMessage
-             -> ReaderT AccessToken m (Either OapiError MessageId)
+             -> OapiRpcWithAtk m MessageId
 oapiChatSend chat_id (SomeMessage real_msg) =
   oapiPostCallWithAtk "/chat/send" []
     (object [ "chatid" .= chat_id

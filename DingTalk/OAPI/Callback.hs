@@ -1,10 +1,15 @@
 module DingTalk.OAPI.Callback
   ( CallbackEvent(..)
   , SomeCallbackEvent(..)
+  , callbackEventEqByTag
   , allKnownCallbackEvents, isKnownCallbackTag
   , parseCallbackDataJson
   , GenericCallbackEvent(..)
   , CheckUrl(..)
+  , UserChangeData(..), DeptChangeData(..)
+  , UserAddOrg(..), UserModifyOrg(..), UserLeaveOrg(..)
+  , LabelUserChange(..)
+  , OrgDeptCreate(..), OrgDeptModify(..), OrgDeptRemove(..)
   , ProcessInstanceChangeData(..), ProcessInstanceChange(..)
   , ProcessTaskChangeData(..), ProcessTaskChange(..)
   , oapiRegisterCallback, oapiUpdateCallback, oapiRegisterOrUpdateCallback
@@ -50,6 +55,13 @@ allKnownCallbackEvents =
   [ SomeCallbackEvent CheckUrl
   , SomeCallbackEvent ProcessInstanceChange
   , SomeCallbackEvent ProcessTaskChange
+  , SomeCallbackEvent UserAddOrg
+  , SomeCallbackEvent UserModifyOrg
+  , SomeCallbackEvent UserLeaveOrg
+  , SomeCallbackEvent LabelUserChange
+  , SomeCallbackEvent OrgDeptCreate
+  , SomeCallbackEvent OrgDeptModify
+  , SomeCallbackEvent OrgDeptRemove
   ]
 
 
@@ -59,6 +71,10 @@ isKnownCallbackTag tag = isJust $ find match_tag allKnownCallbackEvents
 
 
 data SomeCallbackEvent = forall a. CallbackEvent a => SomeCallbackEvent a
+
+callbackEventEqByTag :: SomeCallbackEvent -> SomeCallbackEvent -> Bool
+callbackEventEqByTag (SomeCallbackEvent x) (SomeCallbackEvent y) = callbackTag x == callbackTag y
+
 
 -- | 当 tag 未知或未有对应类型时的占位. 因此不用加到 allKnownCallbackEvents 去
 data GenericCallbackEvent = GenericCallbackEvent Text
@@ -74,6 +90,92 @@ data CheckUrl = CheckUrl
 instance CallbackEvent CheckUrl where
   callbackTag _ = "check_url"
   type CallbackData CheckUrl = ()
+
+
+-- | 文档没有具体分每个具体的通讯录事件回调的数据
+-- 这类型打算用于所有跟用户相关的变化
+data UserChangeData = UserChangeData
+  { userChangeCorpId  :: CorpId
+  , userChangeUserIds :: [UserId]
+  , userChangeTime    :: Timestamp
+  }
+
+instance FromJSON UserChangeData where
+  parseJSON = withObject "UserChangeData" $ \ o -> do
+                UserChangeData <$> o .: "CorpId"
+                               <*> o .: "UserId"
+                               <*> o .: "TimeStamp"
+
+-- | 文档没有具体分每个具体的通讯录事件回调的数据
+-- 这类型打算用于所有跟用户相关的变化
+data DeptChangeData = DeptChangeData
+  { deptChangeCorpId  :: CorpId
+  , deptChangeDeptIds :: [DeptId]
+  , deptChangeTime    :: Timestamp
+  }
+
+instance FromJSON DeptChangeData where
+  parseJSON = withObject "DeptChangeData" $ \ o -> do
+                DeptChangeData <$> o .: "CorpId"
+                               <*> o .: "DeptId"
+                               <*> o .: "TimeStamp"
+
+
+-- | 通讯录用户增加
+data UserAddOrg = UserAddOrg
+
+instance CallbackEvent UserAddOrg where
+  callbackTag _ = "user_add_org"
+  type CallbackData UserAddOrg = UserChangeData
+
+
+-- | 通讯录用户更改
+data UserModifyOrg = UserModifyOrg
+
+instance CallbackEvent UserModifyOrg where
+  callbackTag _ = "user_modify_org"
+  type CallbackData UserModifyOrg = UserChangeData
+
+
+-- | 通讯录用户离职
+data UserLeaveOrg = UserLeaveOrg
+
+instance CallbackEvent UserLeaveOrg where
+  callbackTag _ = "user_leave_org"
+  type CallbackData UserLeaveOrg = UserChangeData
+
+
+-- | 员工角色信息发生变更
+data LabelUserChange = LabelUserChange
+
+instance CallbackEvent LabelUserChange where
+  callbackTag _ = "label_user_change"
+  type CallbackData LabelUserChange = UserChangeData
+
+
+-- | 通讯录企业部门创建
+data OrgDeptCreate = OrgDeptCreate
+
+instance CallbackEvent OrgDeptCreate where
+  callbackTag _ = "org_dept_create"
+  type CallbackData OrgDeptCreate = DeptChangeData
+
+
+-- | 通讯录企业部门修改
+data OrgDeptModify = OrgDeptModify
+
+instance CallbackEvent OrgDeptModify where
+  callbackTag _ = "org_dept_modify"
+  type CallbackData OrgDeptModify = DeptChangeData
+
+
+-- | 通讯录企业部门删除
+data OrgDeptRemove = OrgDeptRemove
+
+instance CallbackEvent OrgDeptRemove where
+  callbackTag _ = "org_dept_remove"
+  type CallbackData OrgDeptRemove = DeptChangeData
+
 
 
 -- | 审批实例开始，结束
@@ -197,7 +299,7 @@ oapiRegisterCallback :: HttpCallMonad env m
                      -> CallbackToken
                      -> Text  -- ^ URL
                      -> NonEmpty SomeCallbackEvent
-                     -> ReaderT AccessToken m (Either OapiError ())
+                     -> OapiRpcWithAtk m ()
 -- {{{1
 oapiRegisterCallback aes_key token url tags =
   oapiPostCallWithAtk "/call_back/register_call_back"
@@ -218,7 +320,7 @@ oapiUpdateCallback :: HttpCallMonad env m
                    -> CallbackToken
                    -> Text  -- ^ URL
                    -> NonEmpty SomeCallbackEvent
-                   -> ReaderT AccessToken m (Either OapiError ())
+                   -> OapiRpcWithAtk m ()
 -- {{{1
 oapiUpdateCallback aes_key token url tags =
   oapiPostCallWithAtk "/call_back/update_call_back"
@@ -239,7 +341,7 @@ oapiRegisterOrUpdateCallback :: HttpCallMonad env m
                              -> CallbackToken
                              -> Text  -- ^ URL
                              -> NonEmpty SomeCallbackEvent
-                             -> ReaderT AccessToken m (Either OapiError ())
+                             -> OapiRpcWithAtk m ()
 -- {{{1
 oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
   catchOapiError oapiEcCallbackAlreadyExists
@@ -249,7 +351,7 @@ oapiRegisterOrUpdateCallback aes_key token url tags = runExceptT $ do
 
 
 oapiDeleteCallback :: HttpCallMonad env m
-                   => ReaderT AccessToken m (Either OapiError ())
+                   => OapiRpcWithAtk m ()
 oapiDeleteCallback =
   oapiGetCallWithAtk "/call_back/delete_call_back" []
     >>= return . right unUnit
@@ -292,7 +394,7 @@ instance FromJSON CallbackGetFailedResponse where
 
 
 oapiGetCallbackFailedList :: HttpCallMonad env m
-                          => ReaderT AccessToken m (Either OapiError CallbackGetFailedResponse)
+                          => OapiRpcWithAtk m CallbackGetFailedResponse
 oapiGetCallbackFailedList =
   oapiGetCallWithAtk "/call_back/get_call_back_failed_result" []
 

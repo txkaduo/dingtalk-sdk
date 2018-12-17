@@ -58,7 +58,7 @@ oapiUploadMedia :: HttpCallMonad env m
                 -> RequestBody
                 -> Maybe FilePath
                 -> Maybe MimeType
-                -> ReaderT AccessToken m (Either OapiError UploadMediaResp)
+                -> OapiRpcWithAtk m UploadMediaResp
 -- {{{1
 oapiUploadMedia media_type file_content m_file_path m_mime_type = do
   oapiPostCallWithAtk "/media/upload"
@@ -74,7 +74,7 @@ oapiUploadMedia media_type file_content m_file_path m_mime_type = do
 
 oapiDownloadMedia :: HttpCallMonad env m
                   => MediaId
-                  -> ReaderT AccessToken m (Either OapiError (Response LB.ByteString))
+                  -> OapiRpcWithAtk m (Response LB.ByteString)
 -- {{{1
 oapiDownloadMedia media_id = do
   sess <- lift $ asks getWreqSession
