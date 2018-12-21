@@ -9,7 +9,7 @@ import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
-import           Data.List.NonEmpty (nonEmpty)
+import           Data.List.NonEmpty (nonEmpty, some1, NonEmpty)
 import qualified Data.Text as T
 import           Data.Time.Clock.POSIX
 import           Data.Tree
@@ -42,6 +42,8 @@ data ManageCmd = Scopes
                | ShowUserProcessToDo UserId
                | StartProcess ProcessCode UserId (Maybe DeptId) [UserId] [(Text, Text)]
                | DeleteCallback
+               | PunchResult Day Day (NonEmpty UserId)
+               | PunchDetails Day Day (NonEmpty UserId)
                deriving (Show)
 
 data Options = Options
@@ -149,6 +151,20 @@ manageCmdParser = subparser $
   <> command "delete-callback"
       (info (helper <*> pure DeleteCallback)
         (progDesc "删除已注册回调")
+      )
+  <> command "punch-result"
+      (info (helper <*> pure PunchResult <*> argument auto (metavar "BEGIN_DATE")
+                                         <*> argument auto (metavar "END_DATE")
+                                         <*> some1 (fmap UserId (argument str (metavar "USER_ID")))
+            )
+        (progDesc "打卡结果")
+      )
+  <> command "punch-details"
+      (info (helper <*> pure PunchDetails <*> argument auto (metavar "BEGIN_DATE")
+                                          <*> argument auto (metavar "END_DATE")
+                                          <*> some1 (fmap UserId (argument str (metavar "USER_ID")))
+            )
+        (progDesc "打卡详情")
       )
 -- }}}1
 
@@ -430,6 +446,26 @@ start opts api_env = flip runReaderT api_env $ do
       case err_or_res of
         Left err -> $logError $ "Some API failed: " <> utshow err
         Right () -> putStrLn "OK"
+
+
+    PunchResult begin_day end_day user_ids -> do
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+        oapiSourceAttendPunchResults Nothing user_ids (begin_day, end_day) $$ CL.consume
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
+
+
+    PunchDetails begin_day end_day user_ids -> do
+      err_or_res <- flip runReaderT atk $ do
+        oapiGetAttendPunchDetails Nothing user_ids (begin_day, end_day)
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
 
   where
     corp_id = optCorpId opts

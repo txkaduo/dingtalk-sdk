@@ -32,6 +32,14 @@ import DingTalk.Helpers
 
 #define NEWTYPE_DEF_TEXT(t1) NEWTYPE_DEF(t1, Text) NEWTYPE_TEXT_DERIVING
 
+#define INSTANCES_BY_SHOW_READ(t) \
+instance ParamValue t where { toParamValue = tshow . un ## t } ; \
+instance ToJSON t where { toJSON = toJSON . un ## t }; \
+instance FromJSON t where { \
+  parseJSON (A.String s) = maybe mzero (return . t) $ readMay s ;\
+  parseJSON v = fmap t $ parseJSON v; \
+                          }
+
 NEWTYPE_DEF_TEXT(AccessToken)
 NEWTYPE_DEF_TEXT(SnsAccessToken)
 NEWTYPE_DEF_TEXT(SuiteKey)
@@ -95,6 +103,13 @@ NEWTYPE_DEF(DeptId, Int64)
            , PersistField, PersistFieldSql
            )
 
+INSTANCES_BY_SHOW_READ(DeptId)
+
+-- | 根部门代表的就是整个企业
+rootDeptId :: DeptId
+rootDeptId = DeptId 1
+
+
 
 data ProcessInstResult = ProcessApproved | ProcessDenied
   deriving (Show, Eq, Ord, Enum, Bounded)
@@ -112,18 +127,41 @@ instance FromJSON ProcessInstResult where
 -- }}}1
 
 
--- | 根部门代表的就是整个企业
-rootDeptId :: DeptId
-rootDeptId = DeptId 1
+-- | 考勤记录详情
+NEWTYPE_DEF(AttendPunchDetailsId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           )
+INSTANCES_BY_SHOW_READ(AttendPunchDetailsId)
 
-instance ParamValue DeptId where
-  toParamValue = tshow . unDeptId
 
-instance ToJSON DeptId where toJSON = toJSON . unDeptId
+-- | 考勤记录打卡结果
+NEWTYPE_DEF(AttendPunchResId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           )
+INSTANCES_BY_SHOW_READ(AttendPunchResId)
 
-instance FromJSON DeptId where
-  parseJSON (A.String s) = maybe mzero (return . DeptId) $ readMay s
-  parseJSON v = fmap DeptId $ parseJSON v
+-- | 考勤组
+NEWTYPE_DEF(AttendGroupId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           )
+INSTANCES_BY_SHOW_READ(AttendGroupId)
+
+-- | 排班
+NEWTYPE_DEF(AttendPlanId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           )
+INSTANCES_BY_SHOW_READ(AttendPlanId)
+
+-- | 考勤班次
+NEWTYPE_DEF(AttendClassId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           )
+INSTANCES_BY_SHOW_READ(AttendClassId)
 
 
 class HasAccessToken a where
