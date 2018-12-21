@@ -9,7 +9,7 @@ import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
-import           Data.List.NonEmpty (nonEmpty, some1, NonEmpty)
+import           Data.List.NonEmpty (some1, NonEmpty)
 import qualified Data.Text as T
 import           Data.Time.Clock.POSIX
 import           Data.Tree
@@ -40,7 +40,7 @@ data ManageCmd = Scopes
                | ListProcessInstId ProcessCode Int (Maybe UserId)
                | ShowProcessInst ProcessInstanceId
                | ShowUserProcessToDo UserId
-               | StartProcess ProcessCode UserId (Maybe DeptId) [UserId] [(Text, Text)]
+               | StartProcess ProcessCode UserId (Maybe DeptId) (NonEmpty UserId) [(Text, Text)]
                | DeleteCallback
                | PunchResult Day Day (NonEmpty UserId)
                | PunchDetails Day Day (NonEmpty UserId)
@@ -143,7 +143,7 @@ manageCmdParser = subparser $
     (info (helper <*> (pure StartProcess <*> fmap ProcessCode (argument str (metavar "PROCESS_CODE"))
                                          <*> fmap UserId (argument str (metavar "USER_ID"))
                                          <*> optional (DeptId <$> option auto (long "dept" <> short 'd' <> metavar "DEPT_ID"))
-                                         <*> some (UserId . fromString <$> strOption (long "approver" <> short 'A' <> metavar "APPROVER_USER"))
+                                         <*> some1 (UserId . fromString <$> strOption (long "approver" <> short 'A' <> metavar "APPROVER_USER"))
                                          <*> some (argument nameValueParser (metavar "NAME=VALUE"))
                       ))
           (progDesc "发起一个审批，仅用于测试")
@@ -418,9 +418,7 @@ start opts api_env = flip runReaderT api_env $ do
         Right cnt -> putStrLn $ utshow cnt
 
 
-    StartProcess proc_code user_id m_dept_id approvers0 nv_list -> do
-      approvers <- maybe (fail "审批人不能为空") return (nonEmpty approvers0)
-
+    StartProcess proc_code user_id m_dept_id approvers nv_list -> do
       let inputs_map = mapFromList $ map (uncurry (@=)) nv_list
       err_or_res <- flip runReaderT atk $ runExceptT $ do
                       dept_id <- case m_dept_id of
