@@ -13,10 +13,12 @@ module DingTalk.OAPI.Contacts
   , oapiDeptUserSimpleInfoMaxPageSize
   , oapiGetUserIdByUnionId
   , oapiGetUserParentDeptIds, oapiGetDeptParentDeptIds
+  , oapiDeleteUser
   ) where
 
 -- {{{1 imports
 import           ClassyPrelude
+import           Control.Arrow
 import           Control.Monad.Except hiding (mapM_, mapM)
 import           Control.Monad.Trans.Maybe
 import           Data.Aeson           as A
@@ -529,6 +531,17 @@ oapiGetDeptParentDeptIds dept_id =
     [ "id" &= dept_id
     ]
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "parentIds"))
+
+
+-- | 删除用户
+oapiDeleteUser :: HttpCallMonad env m
+               => UserId
+               -> OapiRpcWithAtk m ()
+oapiDeleteUser user_id =
+  oapiGetCallWithAtk "/user/delete"
+    [ "userid" &= user_id
+    ]
+    >>= return . right unUnit
 
 
 -- vim: set foldmethod=marker:
