@@ -218,12 +218,7 @@ start opts api_env = flip runReaderT api_env $ do
           putStrLn $ utshow resp
 
     SearchUser name -> do
-      err_or_res <- flip runReaderT atk $ runExceptT $ do
-        oapiSourceDeptUserSimpleInfoRecursive rootDeptId
-                        =$= CL.filter ((== name) . userSimpleInfoName)
-                        =$= CL.mapM (ExceptT . oapiGetUserDetails . userSimpleInfoId)
-                        =$= CL.catMaybes
-                        $$ CL.consume
+      err_or_res <- flip runReaderT atk $ filterUserByNameInDept rootDeptId name
 
       case err_or_res of
         Left err -> do

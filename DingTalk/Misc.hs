@@ -1,13 +1,17 @@
 module DingTalk.Misc where
 
 -- {{{1 imports
-import ClassyPrelude
-import Control.Monad.Logger
-import qualified Data.Text            as T
-import Text.Show.Unicode (ushow)
+import           ClassyPrelude
+import           Control.Monad.Trans.Except
+import           Control.Monad.Logger
+import           Data.Conduit
+import qualified Data.Conduit.List as CL
+import qualified Data.Text as T
+import           Text.Show.Unicode (ushow)
 
 import DingTalk.Types
 import DingTalk.OAPI.Basic
+import DingTalk.OAPI.Contacts
 -- }}}1
 
 
@@ -49,5 +53,20 @@ logDingTalkError_ err = do
   $logError $ "DingTalk API error: " <> fromString (ushow err)
 -- }}}1
 
+
+-- | 在某个部门下，递归查找指定用户名的信息
+-- XXX: 如果部门下的用户比较多，会比较慢
+filterUserByNameInDept :: HttpCallMonad env m
+                       => DeptId
+                       -> Text
+                       -> OapiRpcWithAtk m [UserDetails]
+-- {{{1
+filterUserByNameInDept dept_id name = runExceptT $ do
+  oapiSourceDeptUserSimpleInfoRecursive dept_id
+    =$= CL.filter ((== name) . userSimpleInfoName)
+    =$= CL.mapM (ExceptT . oapiGetUserDetails . userSimpleInfoId)
+    =$= CL.catMaybes
+    $$ CL.consume
+-- }}}1
 
 -- vim: set foldmethod=marker:
