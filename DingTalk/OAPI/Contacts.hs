@@ -415,7 +415,7 @@ instance FromJSON UserDetails where
                             <*> o .: "department"
                             <*> (o .:? "avatar" >>= nullTextAsNothing)
                             <*> o .:? "hiredDate"
-                            <*> o .: "roles"
+                            <*> (o .:? "roles" .!= [])
 
 instance ToJSON UserDetails where
   toJSON (UserDetails {..}) = object $ catMaybes
