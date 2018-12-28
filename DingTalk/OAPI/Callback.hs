@@ -200,6 +200,16 @@ data ProcessInstanceChangeData =
         , processInstanceFinishFinishTime    :: Timestamp
         , processInstanceFinishResult        :: ProcessInstResult
         }
+    | ProcessInstanceTerminateData
+        { processInstanceTerminateInstanceId    :: ProcessInstanceId
+        , processInstanceTerminateCorpId        :: CorpId
+        , processInstanceTerminateBizCategoryId :: Maybe BizCategoryId
+        , processInstanceTerminateTitle         :: Text
+        , processInstanceTerminateApplicant     :: UserId
+        , processInstanceTerminateUrl           :: Text
+        , processInstanceTerminateCreatedTime   :: Timestamp
+        , processInstanceTerminateTerminateTime    :: Timestamp
+        }
 
 -- {{{1 instances
 instance FromJSON ProcessInstanceChangeData where
@@ -224,7 +234,16 @@ instance FromJSON ProcessInstanceChangeData where
                                             <*> o .: "finishTime"
                                             <*> o .: "result"
 
-      _ -> fail $ "unknown ProcessInstanceChangeData type: " <> unpack typ
+      "terminate" -> ProcessInstanceTerminateData <$> o .: "processInstanceId"
+                                                  <*> o .: "corpId"
+                                                  <*> o .:? "bizCategoryId"
+                                                  <*> o .: "title"
+                                                  <*> o .: "staffId"
+                                                  <*> o .: "url"
+                                                  <*> o .: "createTime"
+                                                  <*> o .: "finishTime"
+
+      _ -> fail $ "unknown ProcessInstanceChangeData type: " <> unpack typ <> "===" <> show o
 -- }}}1
 
 
@@ -249,6 +268,15 @@ data ProcessTaskChangeData =
         , processTaskFinishResult        :: ProcessInstResult
         , processTaskFinishRemark        :: Maybe Text
         }
+    | ProcessTaskRedirectData
+        { processTaskFinishInstanceId    :: ProcessInstanceId
+        , processTaskFinishCorpId        :: CorpId
+        , processTaskFinishBizCategoryId :: Maybe BizCategoryId
+        , processTaskFinishTitle         :: Text
+        , processTaskFinishStaff         :: UserId
+        , processTaskFinishCreatedTime   :: Timestamp
+        , processTaskFinishFinishTime    :: Timestamp
+        }
 
 
 -- {{{1 instances
@@ -264,16 +292,27 @@ instance FromJSON ProcessTaskChangeData where
                                       <*> o .: "createTime"
 
       "finish" -> do
-        result <- o .: "result"
-        ProcessTaskFinishData <$> o .: "processInstanceId"
-                              <*> o .: "corpId"
-                              <*> o .:? "bizCategoryId"
-                              <*> o .: "title"
-                              <*> o .: "staffId"
-                              <*> o .: "createTime"
-                              <*> o .: "finishTime"
-                              <*> o .: result
-                              <*> o .:? "remark"
+        res <- fmap asText $ o .: "result"
+        case res of
+          "redirect" ->
+            ProcessTaskRedirectData <$> o .: "processInstanceId"
+                                    <*> o .: "corpId"
+                                    <*> o .:? "bizCategoryId"
+                                    <*> o .: "title"
+                                    <*> o .: "staffId"
+                                    <*> o .: "createTime"
+                                    <*> o .: "finishTime"
+          _ -> do
+            result <- o .: "result"
+            ProcessTaskFinishData <$> o .: "processInstanceId"
+                                  <*> o .: "corpId"
+                                  <*> o .:? "bizCategoryId"
+                                  <*> o .: "title"
+                                  <*> o .: "staffId"
+                                  <*> o .: "createTime"
+                                  <*> o .: "finishTime"
+                                  <*> o .: result
+                                  <*> o .:? "remark"
 
       _ -> fail $ "unknown ProcessTaskChangeData type: " <> unpack typ
 -- }}}1
