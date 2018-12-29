@@ -9,6 +9,7 @@ module DingTalk.OAPI.Process
   , maxOapiGetProcessInstBatchSize
   , ProcessInstListResponse(..)
   , oapiGetProcessInstanceIdList, oapiSourceProcessInstId
+  , ProcessInstStatus(..), ProcessOpType(..), ProcessOpResult(..)
   , ProcessOpRecord(..), ProcessBizAction(..), ProcessTaskStatus(..), ProcessTaskResult(..), FormComponentInput(..)
   , ProcessTaskInfo(..), ProcessInstInfo(..)
   , processInstInfoFormLookup
