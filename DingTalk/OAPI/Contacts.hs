@@ -3,7 +3,7 @@ module DingTalk.OAPI.Contacts
   ( oapiGetDeptListIds
   , DeptInfo(..), oapiGetSubDeptList
   , oapiGetDeptInfoSubForest, oapiGetDeptInfoTree, oapiGetDeptSimpleInfo
-  , Role(..), UserDetails(..), oapiGetUserDetails
+  , Role(..), UserDetails(..), oapiGetUserDetails', oapiGetUserDetails
   , UserSimpleInfo(..), DeptUserSortOrder(..), oapiGetDeptUserSimpleList
   , AdminSimpleInfo(..), AdminLevel(..), oapiGetAdminList
   , oapiSourceDeptUserSimpleInfo, oapiSourceDeptUserSimpleInfoRecursive
@@ -435,14 +435,19 @@ instance ToJSON UserDetails where
                               ]
 -- }}}1
 
-oapiGetUserDetails :: HttpCallMonad env m
-                   => UserId
-                   -> OapiRpcWithAtk m (Maybe UserDetails)
-oapiGetUserDetails user_id =
-  fmap oapiNotFoundToMaybe $
+
+oapiGetUserDetails' :: HttpCallMonad env m
+                    => UserId
+                    -> OapiRpcWithAtk m UserDetails
+oapiGetUserDetails' user_id =
     oapiGetCallWithAtk "/user/get"
       [ "userid" &= user_id
       ]
+
+oapiGetUserDetails :: HttpCallMonad env m
+                   => UserId
+                   -> OapiRpcWithAtk m (Maybe UserDetails)
+oapiGetUserDetails = fmap oapiNotFoundToMaybe . oapiGetUserDetails'
 
 
 data AdminLevel = AdminLevelPrimary
