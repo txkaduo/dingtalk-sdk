@@ -367,6 +367,8 @@ start opts api_env = flip runReaderT api_env $ do
           putStrLn $ "Process Instance Info"
           putStrLn $ "====================="
           putStrLn $ "Title: " <> processInstInfoTitle
+          putStrLn $ "Status: " <> utshow processInstInfoStatus
+          putStrLn $ "Result: " <> utshow processInstInfoResult
           putStrLn $ "Create Time: " <> utshow processInstInfoCreateTime
           putStrLn $ "Finish Time: " <> utshow processInstInfoFinishTime
 
