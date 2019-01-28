@@ -289,9 +289,9 @@ oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
 oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
 
-class (MonadIO m, MonadLogger m) => DingTalkAccessTokenRun m a where
-  runWithDingTalkAccessToken :: a
-                             -> ReaderT AccessToken (ReaderT (HttpApiRunEnv SomeRemoteCallThrottle) m) r
+class DingTalkAccessTokenRun a where
+  runWithDingTalkAccessToken :: (HttpCallBaseMonad m) => a
+                             -> ReaderT AccessToken (ReaderT HttpApiRunEnv' m) r
                              -> m r
 
 

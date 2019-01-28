@@ -145,10 +145,10 @@ handlerDingTalkLoginComeBack :: (MonadHandler m
                                 , Yesod (HandlerSite m)
                                 , HasDingTalkLoginAppId (HandlerSite m)
                                 , HasDingTalkCorpId (HandlerSite m)
-                                , DingTalkAccessTokenRun m (HandlerSite m)
-                                , DingTalkSnsAccessTokenRun m (HandlerSite m)
+                                , DingTalkAccessTokenRun (HandlerSite m)
+                                , DingTalkSnsAccessTokenRun (HandlerSite m)
                                 , ToTypedContent c
-                                , MonadBaseControl IO m
+                                , HttpCallBaseMonad m
                                 )
                              => (WidgetT (HandlerSite m) IO () -> m c)
                              -- ^ usually it is 'defaultLayout'

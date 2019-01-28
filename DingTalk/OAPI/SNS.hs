@@ -12,7 +12,6 @@ module DingTalk.OAPI.SNS
 
 -- {{{1 imports
 import           ClassyPrelude
-import           Control.Monad.Logger
 import qualified Data.ByteString.Builder as BB
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
@@ -162,9 +161,10 @@ oapiPostCallWithSnsAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
 oapiPostCallWithSnsAtk = oapiPostCallWithAtkLike
 
 
-class (MonadIO m, MonadLogger m) => DingTalkSnsAccessTokenRun m a where
-  runWithDingTalkSnsAccessToken :: a
-                                -> ReaderT SnsAccessToken (ReaderT (HttpApiRunEnv SomeRemoteCallThrottle) m) r
+class DingTalkSnsAccessTokenRun a where
+  runWithDingTalkSnsAccessToken :: (HttpCallBaseMonad m)
+                                => a
+                                -> ReaderT SnsAccessToken (ReaderT HttpApiRunEnv' m) r
                                 -> m r
 
 

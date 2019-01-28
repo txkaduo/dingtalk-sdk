@@ -201,8 +201,11 @@ class HasDingTalkLoginAppId a where
 data HttpApiRunEnv t = HttpApiRunEnv t WS.Session
   deriving (Functor)
 
+type HttpApiRunEnv' = HttpApiRunEnv SomeRemoteCallThrottle
 
-type HttpCallMonad t m = ( MonadIO m, MonadLogger m, MonadThrow m, MonadBaseControl IO m
+type HttpCallBaseMonad m = ( MonadIO m, MonadLogger m, MonadThrow m, MonadBaseControl IO m )
+
+type HttpCallMonad t m = ( HttpCallBaseMonad m
                          , RemoteCallThrottle t
                          , MonadReader (HttpApiRunEnv t) m
                          )
