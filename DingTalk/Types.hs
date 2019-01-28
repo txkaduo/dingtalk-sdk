@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# OPTIONS_GHC -pgmP cc -optP -E -optP -undef -optP -std=c89 #-}
 -- 上面这个命令行是为了使用 ## 这样的CPP操作符. ghc ticket 12516
 module DingTalk.Types
@@ -175,6 +176,21 @@ instance HasWreqSession WS.Session where
     getWreqSession = id
 
 
+-- | 钉钉接口每秒调用到100次就会报错，而且经常缺少批量取得信息的接口
+-- 所以要有某种自我约束调用频率的方法
+class RemoteCallThrottle a where
+  throttleRemoteCall :: (MonadBaseControl IO m) => a -> m c -> m c
+
+instance RemoteCallThrottle () where
+  throttleRemoteCall _ = id
+
+
+data SomeRemoteCallThrottle = forall t. RemoteCallThrottle t => SomeRemoteCallThrottle t
+
+instance RemoteCallThrottle SomeRemoteCallThrottle where
+  throttleRemoteCall (SomeRemoteCallThrottle t) = throttleRemoteCall t
+
+
 class HasDingTalkCorpId a where
   getDingTalkCorpId :: a -> CorpId
 
@@ -182,9 +198,13 @@ class HasDingTalkLoginAppId a where
   getDingTalkLoginAppId :: a -> SnsAppId
 
 
-type HttpCallMonad r m = (MonadIO m, MonadLogger m, MonadThrow m
-                         , MonadReader r m
-                         , HasWreqSession r
+data HttpApiRunEnv t = HttpApiRunEnv t WS.Session
+  deriving (Functor)
+
+
+type HttpCallMonad t m = ( MonadIO m, MonadLogger m, MonadThrow m, MonadBaseControl IO m
+                         , RemoteCallThrottle t
+                         , MonadReader (HttpApiRunEnv t) m
                          )
 
 

@@ -192,9 +192,9 @@ enumStringReader type_prompt = do
         (parseEnumParamValueText $ fromString s)
 -- }}}1
 
-start :: (MonadLogger m, MonadCatch m, MonadIO m)
+start :: (MonadLogger m, MonadCatch m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
       => Options
-      -> WS.Session
+      -> HttpApiRunEnv t
       -> m ()
 -- {{{1
 start opts api_env = flip runReaderT api_env $ do
@@ -473,7 +473,8 @@ start' :: Options -> IO ()
 start' opts = do
   sess <- WS.newAPISession
   logger_set <- newStderrLoggerSet 0
-  let api_env = sess
+  throttle <- overrideMinimalIntervalThrottle 0.01 <$> newMinimalIntervalThrottle
+  let api_env = HttpApiRunEnv throttle sess
   runLoggingT
       (start opts api_env)
       (appLogger logger_set (optVerbose opts))

@@ -19,7 +19,6 @@ import qualified Data.Aeson.Extra     as AE
 import           Data.Proxy
 import           Network.HTTP.Types   (renderQueryText)
 import           Network.Wreq.Types   (Postable)
-import qualified Network.Wreq.Session as WS
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
@@ -164,7 +163,9 @@ oapiPostCallWithSnsAtk = oapiPostCallWithAtkLike
 
 
 class (MonadIO m, MonadLogger m) => DingTalkSnsAccessTokenRun m a where
-  runWithDingTalkSnsAccessToken :: a -> ReaderT SnsAccessToken (ReaderT WS.Session m) r -> m r
+  runWithDingTalkSnsAccessToken :: a
+                                -> ReaderT SnsAccessToken (ReaderT (HttpApiRunEnv SomeRemoteCallThrottle) m) r
+                                -> m r
 
 
 -- vim: set foldmethod=marker:

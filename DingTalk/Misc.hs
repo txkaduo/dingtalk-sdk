@@ -1,13 +1,15 @@
 module DingTalk.Misc where
 
 -- {{{1 imports
-import           ClassyPrelude
+import           ClassyPrelude hiding (finally)
+import           Control.Exception.Lifted (finally)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.Text as T
 import           Text.Show.Unicode (ushow)
+import qualified System.Clock as SC
 
 import DingTalk.Types
 import DingTalk.OAPI.Basic
@@ -68,5 +70,38 @@ filterUserByNameInDept dept_id name = runExceptT $ do
     =$= CL.catMaybes
     $$ CL.consume
 -- }}}1
+
+
+data MinimalIntervalThrottle = MinimalIntervalThrottle
+                                Float -- ^ seconds
+                                (MVar (Maybe SC.TimeSpec))
+
+instance RemoteCallThrottle MinimalIntervalThrottle where
+  throttleRemoteCall (MinimalIntervalThrottle interval mvar) f = do
+    liftBase $ do
+      m_last_time <- takeMVar mvar
+
+      when (interval_us > 0) $ do
+        now <- SC.getTime SC.Monotonic
+
+        forM_ m_last_time $ \ last_time -> do
+          let time_diff_nano = SC.toNanoSecs $ SC.diffTimeSpec now last_time
+          when (time_diff_nano < interval_us * 1000) $ do
+            threadDelay (fromIntegral $ interval_us - time_diff_nano `div` 1000)
+
+    f `finally` liftBase save_current_time
+
+    where interval_us = round $ interval * 1000 * 1000
+          save_current_time = SC.getTime SC.Monotonic >>= putMVar mvar . Just
+
+
+newMinimalIntervalThrottle :: MonadIO m => m MinimalIntervalThrottle
+newMinimalIntervalThrottle = liftIO $ MinimalIntervalThrottle 0 <$> newMVar Nothing
+
+
+overrideMinimalIntervalThrottle :: Float -> MinimalIntervalThrottle -> MinimalIntervalThrottle
+overrideMinimalIntervalThrottle new_interval (MinimalIntervalThrottle _ mvar) =
+  MinimalIntervalThrottle new_interval mvar
+
 
 -- vim: set foldmethod=marker:

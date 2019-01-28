@@ -4,7 +4,6 @@ module DingTalk.OAPI.Media where
 import           ClassyPrelude
 import           Control.Lens         hiding ((.=))
 import           Control.Monad.Logger
-import           Control.Monad.Reader (asks)
 import           Data.Aeson           as A
 import qualified Data.ByteString.Lazy as LB
 import           Network.HTTP.Client  (RequestBody)
@@ -77,11 +76,11 @@ oapiDownloadMedia :: HttpCallMonad env m
                   -> OapiRpcWithAtk m (Response LB.ByteString)
 -- {{{1
 oapiDownloadMedia media_id = do
-  sess <- lift $ asks getWreqSession
+  HttpApiRunEnv t sess <- lift ask
   atk <- ask
   let opts = defaults & applyParamKvListInQs [ "access_token" &= atk, "media_id" &= media_id ]
 
-  resp <- liftIO $ WS.getWith opts sess url
+  resp <- throttleRemoteCall t $ liftIO $ WS.getWith opts sess url
   if "application/json" `isPrefixOf` (resp ^. responseHeader "Content-Type")
      then do
        v <- fmap (view responseBody) $ asJSON resp

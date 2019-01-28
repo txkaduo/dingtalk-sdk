@@ -16,8 +16,7 @@ module DingTalk.OAPI.Basic
 import           ClassyPrelude
 import           Control.Lens         hiding ((.=))
 import           Control.Monad.Logger
-import           Control.Monad.Except
-import           Control.Monad.Reader (asks)
+import           Control.Monad.Except hiding (mapM_)
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import qualified Data.ByteString.Lazy as LB
@@ -224,9 +223,10 @@ oapiGetCall :: (HttpCallMonad env m, FromJSON a)
             -> m (Either OapiError a)
 -- {{{1
 oapiGetCall url_path kv_list = do
-  sess <- asks getWreqSession
-  liftIO (WS.getWith opts sess url)
-    >>= oapiConvertResp url_path
+  HttpApiRunEnv t sess <- ask
+  throttleRemoteCall t $ do
+    liftIO (WS.getWith opts sess url)
+      >>= oapiConvertResp url_path
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
@@ -258,9 +258,10 @@ oapiPostCall :: (HttpCallMonad env m, FromJSON a, Postable b)
              -> m (Either OapiError a)
 -- {{{1
 oapiPostCall url_path kv_list post_data = do
-  sess <- asks getWreqSession
-  liftIO (WS.postWith opts sess url post_data)
-    >>= oapiConvertResp url_path
+  HttpApiRunEnv t sess <- ask
+  throttleRemoteCall t $ do
+    liftIO (WS.postWith opts sess url post_data)
+      >>= oapiConvertResp url_path
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
@@ -289,7 +290,9 @@ oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
 
 class (MonadIO m, MonadLogger m) => DingTalkAccessTokenRun m a where
-  runWithDingTalkAccessToken :: a -> ReaderT AccessToken (ReaderT WS.Session m) r -> m r
+  runWithDingTalkAccessToken :: a
+                             -> ReaderT AccessToken (ReaderT (HttpApiRunEnv SomeRemoteCallThrottle) m) r
+                             -> m r
 
 
 -- vim: set foldmethod=marker:
