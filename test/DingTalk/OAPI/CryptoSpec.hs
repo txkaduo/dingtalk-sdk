@@ -5,7 +5,6 @@ import ClassyPrelude
 import Data.Either
 import Control.Exception (ErrorCall(..), evaluate)
 import Test.Hspec
-import Test.QuickCheck
 import DingTalk.OAPI.Crypto
 import DingTalk.Types
 -- }}}1
