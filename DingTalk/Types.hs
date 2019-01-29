@@ -179,7 +179,7 @@ instance HasWreqSession WS.Session where
 -- | 钉钉接口每秒调用到100次就会报错，而且经常缺少批量取得信息的接口
 -- 所以要有某种自我约束调用频率的方法
 class RemoteCallThrottle a where
-  throttleRemoteCall :: (MonadBaseControl IO m) => a -> m c -> m c
+  throttleRemoteCall :: (MonadBaseControl IO m, MonadLogger m) => a -> m c -> m c
 
 instance RemoteCallThrottle () where
   throttleRemoteCall _ = id

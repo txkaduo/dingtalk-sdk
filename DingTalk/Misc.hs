@@ -1,8 +1,8 @@
 module DingTalk.Misc where
 
 -- {{{1 imports
-import           ClassyPrelude hiding (finally)
-import           Control.Exception.Lifted (finally)
+import           ClassyPrelude hiding (bracket)
+import           Control.Exception.Lifted (bracket)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
 import           Data.Conduit
@@ -14,6 +14,7 @@ import qualified System.Clock as SC
 import DingTalk.Types
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Contacts
+import DingTalk.Helpers
 -- }}}1
 
 
@@ -78,21 +79,21 @@ data MinimalIntervalThrottle = MinimalIntervalThrottle
 
 instance RemoteCallThrottle MinimalIntervalThrottle where
   throttleRemoteCall (MinimalIntervalThrottle interval mvar) f = do
-    liftBase $ do
-      m_last_time <- takeMVar mvar
-
+    bracket (liftBase $ takeMVar mvar) (const save_current_time) $ \ m_last_time -> do
       when (interval_us > 0) $ do
-        now <- SC.getTime SC.Monotonic
+        now <- liftBase $ SC.getTime SC.Monotonic
 
         forM_ m_last_time $ \ last_time -> do
           let time_diff_nano = SC.toNanoSecs $ SC.diffTimeSpec now last_time
           when (time_diff_nano < interval_us * 1000) $ do
-            threadDelay (fromIntegral $ interval_us - time_diff_nano `div` 1000)
+            let delay_us = fromIntegral $ interval_us - time_diff_nano `div` 1000
+            -- $logWarnS logSourceName $ "Delaying call for " <> tshow delay_us <> " us."
+            liftBase $ threadDelay delay_us
 
-    f `finally` liftBase save_current_time
+      f
 
     where interval_us = round $ interval * 1000 * 1000
-          save_current_time = SC.getTime SC.Monotonic >>= putMVar mvar . Just
+          save_current_time = liftBase $ SC.getTime SC.Monotonic >>= putMVar mvar . Just
 
 
 newMinimalIntervalThrottle :: MonadIO m => m MinimalIntervalThrottle
