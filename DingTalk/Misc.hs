@@ -5,11 +5,13 @@ import           ClassyPrelude hiding (bracket)
 import           Control.Exception.Lifted (bracket)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
+import qualified Control.Monad.Logger.CallStack as LCS
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.Text as T
 import           Text.Show.Unicode (ushow)
 import qualified System.Clock as SC
+import           GHC.Stack (HasCallStack)
 
 import DingTalk.Types
 import DingTalk.OAPI.Basic
@@ -39,7 +41,7 @@ rawTextToCorpIdOrSuiteKey t =
      else Right $ SuiteKey t
 
 
-logDingTalkError :: MonadLogger m => m a -> Either OapiError a -> m a
+logDingTalkError :: (HasCallStack, MonadLogger m) => m a -> Either OapiError a -> m a
 -- {{{1
 logDingTalkError f err_or = do
   case err_or of
@@ -50,10 +52,10 @@ logDingTalkError f err_or = do
 -- }}}1
 
 
-logDingTalkError_ :: MonadLogger m => OapiError -> m ()
+logDingTalkError_ :: (HasCallStack, MonadLogger m) => OapiError -> m ()
 -- {{{1
 logDingTalkError_ err = do
-  $logError $ "DingTalk API error: " <> fromString (ushow err)
+  LCS.logError $ "DingTalk API error: " <> fromString (ushow err)
 -- }}}1
 
 
