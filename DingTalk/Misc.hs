@@ -16,8 +16,14 @@ import           GHC.Stack (HasCallStack)
 import DingTalk.Types
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Contacts
-import DingTalk.Helpers
 -- }}}1
+
+
+newtype DingTalkRunner = DingTalkRunner
+  { runDingTalk :: forall a m. (HttpCallBaseMonad m)
+                => ReaderT AccessToken (ReaderT HttpApiRunEnv' m) a
+                -> m a
+  }
 
 
 httpUserAgentDingTalkVer :: Text -> Maybe Text
