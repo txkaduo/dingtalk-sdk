@@ -37,11 +37,12 @@ instance FromJSON MediaType where
 -- }}}1
 
 
-data UploadMediaResp =
-  UploadMediaResp
-    MediaId
-    MediaType
-    Timestamp
+data UploadMediaResp = UploadMediaResp
+  { uploadMediaRespId :: MediaId
+  , uploadMediaRespType :: MediaType
+  , uploadMediaRespTime :: Timestamp
+  }
+
 
 -- {{{1
 instance FromJSON UploadMediaResp where
@@ -55,18 +56,17 @@ instance FromJSON UploadMediaResp where
 oapiUploadMedia :: HttpCallMonad env m
                 => MediaType
                 -> RequestBody
-                -> Maybe FilePath
+                -> FilePath
                 -> Maybe MimeType
                 -> OapiRpcWithAtk m UploadMediaResp
 -- {{{1
-oapiUploadMedia media_type file_content m_file_path m_mime_type = do
+oapiUploadMedia media_type file_content file_path m_mime_type = do
   oapiPostCallWithAtk "/media/upload"
     [ "type" &= media_type
     ]
     file_part
   where
-    file_part = partFileRequestBody "media" "" file_content
-                  & maybe id (\ fp -> partFileName .~ Just fp) m_file_path
+    file_part = partFileRequestBody "media" file_path file_content
                   & maybe id (\ mime_type -> partContentType .~ Just mime_type) m_mime_type
 -- }}}1
 

@@ -304,7 +304,7 @@ start opts api_env = flip runReaderT api_env $ do
     UploadMedia media_type file_path -> do
       file_body <- liftIO $ streamFile file_path
       err_or_res <- flip runReaderT atk $
-                      oapiUploadMedia media_type file_body (Just file_path) Nothing
+                      oapiUploadMedia media_type file_body file_path Nothing
       case err_or_res of
         Left err -> do
           $logError $ "oapiUploadMedia failed: " <> utshow err
