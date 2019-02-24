@@ -134,6 +134,7 @@ instance ToJSON CcTiming where
 
 data FormComponentValue = FormCompValueText Text    -- ^ 普通文字输入框
                         | FormCompValueImages (NonEmpty (Either Text MediaId)) -- ^ 最多9张图片
+                        -- FIXME: 文档有提过可以用 media_id ，但按现在的代码测试是图片是烂的
                         | FormCompValueDetails (NonEmpty FormCompValueNameValues)
                         deriving (Show)
 
