@@ -371,6 +371,7 @@ start opts api_env = flip runReaderT api_env $ do
           putStrLn $ "Result: " <> utshow processInstInfoResult
           putStrLn $ "Create Time: " <> utshow processInstInfoCreateTime
           putStrLn $ "Finish Time: " <> utshow processInstInfoFinishTime
+          putStrLn $ "Form Values: " <> toStrict (decodeUtf8 $ AP.encodePretty processInstInfoFormComponentKeyValues)
 
           putStr "Operation Records:"
           if null processInstInfoOpRecords

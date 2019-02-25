@@ -441,6 +441,13 @@ instance FromJSON FormComponentInput where
                                    <*> o .: "value"
                                    <*> o .:? "ext_value"
 
+instance ToJSON FormComponentInput where
+  toJSON (FormComponentInput {..}) =
+    object [ "name" .= formComponentInputName
+           , "value" .= formComponentInputValue
+           , "ext_value" .= formComponentInputExtValue
+           ]
+
 data ProcessInstInfo = ProcessInstInfo
   { processInstInfoTitle                  :: Text
   , processInstInfoCreateTime             :: LocalTime
