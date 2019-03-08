@@ -427,7 +427,7 @@ start opts api_env = flip runReaderT api_env $ do
                                         >>= maybe (fail "user not found") return
                                         >>= maybe (fail "user does not belong to any dept") return . listToMaybe
 
-                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id approvers Nothing inputs_map
+                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id (Just approvers) Nothing inputs_map
 
       case err_or_res of
         Left err -> do

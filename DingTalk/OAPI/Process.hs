@@ -132,6 +132,7 @@ instance ToJSON CcTiming where
 -- }}}1
 
 
+-- TODO: 钉钉修正可以支持日期区间、数字、金额控件了，待补充
 data FormComponentValue = FormCompValueText Text    -- ^ 普通文字输入框
                         | FormCompValueImages (NonEmpty (Either Text MediaId)) -- ^ 最多9张图片
                         -- FIXME: 文档有提过可以用 media_id ，但按现在的代码测试是图片是烂的
@@ -171,12 +172,12 @@ oapiCreateProcessInstance :: HttpCallMonad env m
                           -> ProcessCode
                           -> UserId     -- ^ 发起人
                           -> DeptId     -- ^ 发起人所属部门. 不明白为什么要传这个钉钉系统本身应该知道的信息
-                          -> NonEmpty UserId  -- ^ 审批人
+                          -> Maybe (NonEmpty UserId)  -- ^ 审批人
                           -> Maybe (NonEmpty UserId, CcTiming) -- ^ 抄送人
                           -> FormCompValueNameValues
                           -> OapiRpcWithAtk m ProcessInstanceId
 -- {{{1
-oapiCreateProcessInstance m_agent_id proc_code user_id dept_id approvers m_cc_info form_vals = do
+oapiCreateProcessInstance m_agent_id proc_code user_id dept_id m_approvers m_cc_info form_vals = do
   oapiPostCallWithAtk "/topapi/processinstance/create"
     []
     ( object $ catMaybes
@@ -184,7 +185,7 @@ oapiCreateProcessInstance m_agent_id proc_code user_id dept_id approvers m_cc_in
         , Just $ "process_code" .= proc_code
         , Just $ "originator_user_id" .= user_id
         , Just $ "dept_id" .= dept_id
-        , Just $ ("approvers" .=) . intercalate "," . map toParamValue $ approvers
+        , (("approvers" .=) . intercalate "," . map toParamValue) <$> m_approvers
         , ("cc_list" .=) . intercalate "," . map toParamValue <$> m_cc_list
         , ("cc_position" .=) <$> m_cc_timing
         , Just $ "form_component_values" .= formComponentNameValuesToJson form_vals
@@ -284,6 +285,7 @@ data ProcessOpType = ProcessOpExecuteTaskNormal           -- ^ 正常执行任�
                    | ProcessOpTerminateProcessInst        -- ^ 终止(撤销)流程实例
                    | ProcessOpFinishProcessInst           -- ^ 结束流程实例
                    | ProcessOpAddRemark                   -- ^ 添加评论
+                   | ProcessOpTypeNone                        -- ^ 文档没有说明。看起来像是或签时取消未操作任务。
                    deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1 instances
@@ -297,6 +299,7 @@ instance ParamValue ProcessOpType where
   toParamValue ProcessOpTerminateProcessInst = "TERMINATE_PROCESS_INSTANCE"
   toParamValue ProcessOpFinishProcessInst    = "FINISH_PROCESS_INSTANCE"
   toParamValue ProcessOpAddRemark            = "ADD_REMARK"
+  toParamValue ProcessOpTypeNone             = "NONE"
 
 instance ToJSON ProcessOpType where toJSON = toJSON . toParamValue
 
@@ -391,6 +394,7 @@ data ProcessTaskResult = ProcessTaskAgreed
                        | ProcessTaskRefused
                        | ProcessTaskRedirected
                        | ProcessTaskNone  -- ^ 文档没解释这是什么
+                                          -- ^ XXX: 经测试，或签的情况下，其他没有表示意见的人时NONE
                       deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1 instances
@@ -477,7 +481,7 @@ instance FromJSON ProcessInstInfo where
                                 <*> o .: "originator_userid"
                                 <*> o .: "originator_dept_id"
                                 <*> o .: "status"
-                                <*> (o .: "approver_userids" >>= aesonParseSepTextOrList "," (return . UserId))
+                                <*> ((o .:? "approver_userids" >>= mapM (aesonParseSepTextOrList "," (return . UserId))) .!= [])
                                 <*> ((o .:? "cc_userids" >>= mapM (aesonParseSepTextOrList "," (return . UserId))) .!= [])
                                 <*> o .: "form_component_values"
                                 <*> ( o .:? "result"
