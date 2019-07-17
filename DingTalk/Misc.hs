@@ -19,6 +19,10 @@ import DingTalk.OAPI.Contacts
 -- }}}1
 
 
+nullUserIdToNothing :: UserId -> Maybe UserId
+nullUserIdToNothing (UserId t) = guard (not $ null t) >> pure (UserId t)
+
+
 newtype DingTalkRunner = DingTalkRunner
   { runDingTalk :: forall a m. (HttpCallBaseMonad m)
                 => ReaderT AccessToken (ReaderT HttpApiRunEnv' m) a

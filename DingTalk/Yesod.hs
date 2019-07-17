@@ -41,7 +41,7 @@ deptDetailsToOption info = Option
                             (toParamValue $ deptDetailsId info)
 
 
--- | 从 User-Agent 找微信版本
+-- | 从 User-Agent 找钉钉版本
 handlerGetDingTalkVer :: MonadHandler m => m (Maybe Text)
 -- {{{1
 handlerGetDingTalkVer = do
