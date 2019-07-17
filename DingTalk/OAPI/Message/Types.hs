@@ -107,6 +107,10 @@ instance ToJSON OaBody where
 -- }}}1
 
 
+defaultOaBody :: OaBody
+defaultOaBody = OaBody mempty empty empty empty empty empty empty
+
+
 data ActionCardOrientation = ActionCardHorizontal
                            | ActionCardVertical
                            deriving (Eq, Ord, Show, Enum, Bounded)
