@@ -19,6 +19,10 @@ import           Text.Blaze.Html       (ToMarkup (..))
 import           Text.Shakespeare.I18N (ToMessage (..))
 
 import DingTalk.Helpers
+
+#if MIN_VERSION_classy_prelude(1, 5, 0)
+import Control.Monad.Trans.Control
+#endif
 -- }}}1
 
 
@@ -179,7 +183,8 @@ instance HasWreqSession WS.Session where
 -- | 钉钉接口每秒调用到100次就会报错，而且经常缺少批量取得信息的接口
 -- 所以要有某种自我约束调用频率的方法
 class RemoteCallThrottle a where
-  throttleRemoteCall :: (MonadBaseControl IO m, MonadLogger m) => a -> m c -> m c
+  throttleRemoteCall :: (MonadIO m, MonadLogger m, MonadBaseControl IO m)
+                     => a -> m c -> m c
 
 instance RemoteCallThrottle () where
   throttleRemoteCall _ = id
@@ -203,7 +208,7 @@ data HttpApiRunEnv t = HttpApiRunEnv t WS.Session
 
 type HttpApiRunEnv' = HttpApiRunEnv SomeRemoteCallThrottle
 
-type HttpCallBaseMonad m = ( MonadIO m, MonadLogger m, MonadThrow m, MonadBaseControl IO m )
+type HttpCallBaseMonad m = ( MonadIO m, MonadLogger m, MonadBaseControl IO m )
 
 type HttpCallMonad t m = ( HttpCallBaseMonad m
                          , RemoteCallThrottle t

@@ -83,7 +83,7 @@ oapiDownloadMedia media_id = do
   resp <- throttleRemoteCall t $ liftIO $ WS.getWith opts sess url
   if "application/json" `isPrefixOf` (resp ^. responseHeader "Content-Type")
      then do
-       v <- fmap (view responseBody) $ asJSON resp
+       v <- liftIO $ fmap (view responseBody) $ asJSON resp
        case A.fromJSON v of
          A.Error err -> do
            $logErrorS logSourceName $
@@ -91,7 +91,7 @@ oapiDownloadMedia media_id = do
                       <> ", body is:\n" <>
                       toStrict (decodeUtf8 (resp ^. responseBody))
 
-           throwM $ DatagramError "cannot parse response body"
+           liftIO $ throwIO $ DatagramError "cannot parse response body"
 
          A.Success x -> return $ Left x
 

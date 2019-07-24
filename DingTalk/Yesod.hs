@@ -2,6 +2,7 @@ module DingTalk.Yesod where
 
 -- {{{1 imports
 import           ClassyPrelude.Yesod hiding (requestHeaders)
+import           Control.Monad.Logger
 import           Control.Monad.Trans.Except
 import           Yesod.Core.Types (HandlerContents(HCError))
 import qualified Data.Aeson.Encode.Pretty as AP
@@ -94,7 +95,7 @@ handlerCheckSnsReturnCodeState app_id = do
     unless (m_expected_state == Just oauth_state) $ do
         $logErrorS logSourceName $
             "OAuth state check failed, got: " <> oauth_state
-        throwM $ HCError NotAuthenticated
+        liftIO $ throwIO $ HCError NotAuthenticated
 
     return $ SnsTmpAuthCode code
 -- }}}1
@@ -141,16 +142,20 @@ handlerDingTalkLoginUrl return_url = do
 
 
 -- | 使用钉钉登录，并返回UserId到原处理逻辑．实际上可能发生多次重定向
-handlerDingTalkLoginComeBack :: (MonadHandler m
+handlerDingTalkLoginComeBack :: ( MonadHandler m
+                                , MonadLoggerIO m
                                 , Yesod (HandlerSite m)
                                 , HasDingTalkLoginAppId (HandlerSite m)
                                 , HasDingTalkCorpId (HandlerSite m)
                                 , DingTalkAccessTokenRun (HandlerSite m)
                                 , DingTalkSnsAccessTokenRun (HandlerSite m)
                                 , ToTypedContent c
-                                , HttpCallBaseMonad m
                                 )
+#if MIN_VERSION_yesod(1, 6, 0)
+                             => (WidgetFor (HandlerSite m) () -> m c)
+#else
                              => (WidgetT (HandlerSite m) IO () -> m c)
+#endif
                              -- ^ usually it is 'defaultLayout'
                              -> m UserId
 -- {{{1
@@ -167,7 +172,8 @@ handlerDingTalkLoginComeBack show_widget = do
       case m_code of
         Just code
           | validateSnsTmpAuthCode code -> do
-              err_or <- runExceptT $ do
+              log_func <- askLoggerIO
+              err_or <- liftIO $ flip runLoggingT log_func $ runExceptT $ do
                 union_id <- ExceptT $ runWithDingTalkSnsAccessToken foundation $ runExceptT $ do
                   fmap snsPersistentAuthCodeRespUnionId $ ExceptT $ oapiSnsGetPersistentAuthCode code
 
@@ -236,7 +242,11 @@ handleDingTalkCallback aes_env token cb_handler = do
       invalidArgs []
 
     FormSuccess (signature, ts, nonce) -> do
+#if MIN_VERSION_yesod(1, 6, 0)
+      body_jv <- requireInsecureJsonBody
+#else
       body_jv <- requireJsonBody
+#endif
       case decryptCallbackPostBody aes_env token signature ts nonce body_jv of
         Left err -> do
           $logErrorS logSourceName $ "Failed to parse callback post body or signature error: " <> err

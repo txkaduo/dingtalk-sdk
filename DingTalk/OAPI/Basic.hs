@@ -56,7 +56,13 @@ type OapiRpcWithAtk m a = ReaderT AccessToken m (Either OapiError a)
 
 type OapiRpcWithAtkExcept m a = ExceptT OapiError (ReaderT AccessToken m) a
 
-type OapiRpcWithAtkSource m a = Source (ExceptT OapiError (ReaderT AccessToken m)) a
+type OapiRpcWithAtkSource m a =
+#if MIN_VERSION_conduit(1, 3, 0)
+  ConduitT
+#else
+  ConduitM
+#endif
+   () a (ExceptT OapiError (ReaderT AccessToken m)) ()
 
 
 data OapiErrorOrPayload a = OapiErrorOrPayload { unOapiErrorOrPayload :: Either OapiError a }
@@ -78,7 +84,7 @@ oapiUrlBase :: IsString s => s
 oapiUrlBase = "https://oapi.dingtalk.com"
 
 
-oapiToPayload :: (MonadLogger m, MonadThrow m, FromJSON a)
+oapiToPayload :: (MonadLogger m, MonadIO m, FromJSON a)
               => Value
               -> m (Either OapiError a)
 -- {{{1
@@ -86,7 +92,7 @@ oapiToPayload v = do
   case fromJSON'Message v of
     Left err -> do
       $logErrorS logSourceName $ "Could not parse response body to payload: " <> err
-      throwM $ DatagramError (unpack err)
+      liftIO $ throwIO $ DatagramError (unpack err)
 
     Right (OapiErrorOrPayload x) -> return x
 -- }}}1
@@ -196,7 +202,7 @@ oapiGetAccessTokenScopes :: HttpCallMonad env m
 oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
 
-oapiConvertResp :: (FromJSON a, MonadIO m, MonadLogger m, MonadThrow m)
+oapiConvertResp :: (FromJSON a, MonadIO m, MonadLogger m)
                 => String
                 -> Response LB.ByteString
                 -> m (Either OapiError a)
@@ -210,7 +216,7 @@ oapiConvertResp url_path r = do
       $logErrorS logSourceName $
         "Failed to decode response as JSON: " <> fromString err
         <> ", response was:\n" <> response_txt
-      liftIO $ throwM $ JSONError err
+      liftIO $ throwIO $ JSONError err
 
     Right resp_json -> do
       oapiToPayload resp_json

@@ -25,6 +25,10 @@ import           Text.Show.Unicode (ushow)
 
 import DingTalk
 import DingTalk.Helpers
+
+#if MIN_VERSION_classy_prelude(1, 5, 0)
+import Control.Monad.Trans.Control
+#endif
 -- }}}1
 
 data ManageCmd = Scopes
@@ -192,7 +196,7 @@ enumStringReader type_prompt = do
         (parseEnumParamValueText $ fromString s)
 -- }}}1
 
-start :: (MonadLogger m, MonadCatch m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
+start :: (MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
       => Options
       -> HttpApiRunEnv t
       -> m ()
@@ -327,10 +331,10 @@ start opts api_env = flip runReaderT api_env $ do
                              Nothing -> awaitForever yield
                              Just txt -> CL.filter (isInfixOf txt . processInfoName)
 
-      err_or_res <- flip runReaderT atk $ runExceptT $ do
+      err_or_res <- flip runReaderT atk $ runExceptT $ runConduit $ do
                       oapiSourceProcessListByUser 0.5 Nothing
-                        =$= filter_conduit
-                        $$ CL.consume
+                        .| filter_conduit
+                        .| CL.consume
 
       case err_or_res of
         Left err -> do
@@ -344,9 +348,9 @@ start opts api_env = flip runReaderT api_env $ do
       now <- liftIO getPOSIXTime
       let start_time = timestampFromPOSIXTime $ now - fromIntegral seconds
 
-      err_or_res <- flip runReaderT atk $ runExceptT $ do
+      err_or_res <- flip runReaderT atk $ runExceptT $ runConduit $ do
                       oapiSourceProcessInstId proc_code start_time Nothing (fmap pure m_user_id)
-                        $$ CL.consume
+                        .| CL.consume
 
       case err_or_res of
         Left err -> do
@@ -445,8 +449,8 @@ start opts api_env = flip runReaderT api_env $ do
 
 
     PunchResult begin_day end_day user_ids -> do
-      err_or_res <- flip runReaderT atk $ runExceptT $ do
-        oapiSourceAttendPunchResults Nothing user_ids (begin_day, end_day) $$ CL.consume
+      err_or_res <- flip runReaderT atk $ runExceptT $ runConduit $ do
+        oapiSourceAttendPunchResults Nothing user_ids (begin_day, end_day) .| CL.consume
 
       case err_or_res of
         Left err -> $logError $ "Some API failed: " <> utshow err

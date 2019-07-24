@@ -16,6 +16,10 @@ import           GHC.Stack (HasCallStack)
 import DingTalk.Types
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Contacts
+
+#if MIN_VERSION_classy_prelude(1, 5, 0)
+import Control.Concurrent (threadDelay)
+#endif
 -- }}}1
 
 
@@ -76,12 +80,12 @@ filterUserByNameInDept :: HttpCallMonad env m
                        -> Text
                        -> OapiRpcWithAtk m [UserDetails]
 -- {{{1
-filterUserByNameInDept dept_id name = runExceptT $ do
+filterUserByNameInDept dept_id name = runExceptT $ runConduit $ do
   oapiSourceDeptUserSimpleInfoRecursive dept_id
-    =$= CL.filter ((== name) . userSimpleInfoName)
-    =$= CL.mapM (ExceptT . oapiGetUserDetails . userSimpleInfoId)
-    =$= CL.catMaybes
-    $$ CL.consume
+    .| CL.filter ((== name) . userSimpleInfoName)
+    .| CL.mapM (ExceptT . oapiGetUserDetails . userSimpleInfoId)
+    .| CL.catMaybes
+    .| CL.consume
 -- }}}1
 
 
@@ -91,21 +95,21 @@ data MinimalIntervalThrottle = MinimalIntervalThrottle
 
 instance RemoteCallThrottle MinimalIntervalThrottle where
   throttleRemoteCall (MinimalIntervalThrottle interval mvar) f = do
-    bracket (liftBase $ takeMVar mvar) (const save_current_time) $ \ m_last_time -> do
+    bracket (liftIO $ takeMVar mvar) (const save_current_time) $ \ m_last_time -> do
       when (interval_us > 0) $ do
-        now <- liftBase $ SC.getTime SC.Monotonic
+        now <- liftIO $ SC.getTime SC.Monotonic
 
         forM_ m_last_time $ \ last_time -> do
           let time_diff_nano = SC.toNanoSecs $ SC.diffTimeSpec now last_time
           when (time_diff_nano < interval_us * 1000) $ do
             let delay_us = fromIntegral $ interval_us - time_diff_nano `div` 1000
             -- $logWarnS logSourceName $ "Delaying call for " <> tshow delay_us <> " us."
-            liftBase $ threadDelay delay_us
+            liftIO $ threadDelay delay_us
 
       f
 
     where interval_us = round $ interval * 1000 * 1000
-          save_current_time = liftBase $ SC.getTime SC.Monotonic >>= putMVar mvar . Just
+          save_current_time = liftIO $ SC.getTime SC.Monotonic >>= putMVar mvar . Just
 
 
 newMinimalIntervalThrottle :: MonadIO m => m MinimalIntervalThrottle

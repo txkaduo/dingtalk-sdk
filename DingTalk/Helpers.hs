@@ -75,7 +75,7 @@ getJsonField jv field = do
     Just x -> return x
     Nothing -> do
       $logErrorS logSourceName $ "field '" <> field <> "' does not exist in JSON: " <> jv_txt
-      liftIO $ throwM $ DatagramError $ unpack $ "field '" <> field <> "' does not exist in JSON"
+      liftIO $ throwIO $ DatagramError $ unpack $ "field '" <> field <> "' does not exist in JSON"
   where jv_txt = toStrict (A.encodeToLazyText jv)
 -- }}}1
 
@@ -96,7 +96,7 @@ getJsonFieldMay jv field = do
           $logErrorS logSourceName $ "failed to decode field '" <> field <> "' in JSON: "
                                       <> fromString err
                                       <> ". JSON was:\n" <> jv_txt
-          liftIO $ throwM $ DatagramError $ unpack $
+          liftIO $ throwIO $ DatagramError $ unpack $
                                   "failed to decode field '"
                                   <> field <> "' in JSON: " <> fromString err
 

@@ -4,7 +4,9 @@ module DingTalk.OAPI.Crypto where
 -- {{{1 imports
 import           ClassyPrelude
 import           Control.Arrow              (left)
+#if !MIN_VERSION_classy_prelude(1, 5, 0)
 import           Control.Exception          (evaluate)
+#endif
 import qualified Data.Binary.Get            as Bin
 import qualified Data.Binary.Put            as Bin
 import qualified Crypto.Cipher.AES          as CN

@@ -329,7 +329,7 @@ oapiGetDeptInfoWithUserForest m_dept_user_order parent_dept_id = runExceptT $ ru
   sub_dept_infos <- MaybeT $ ExceptT $ oapiGetSubDeptList False parent_dept_id
   forM sub_dept_infos $ \ dept_info -> do
     let dept_id = deptInfoId dept_info
-    users <- lift $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id $$ CL.consume
+    users <- lift $ runConduit $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id .| CL.consume
     sub_forest <- lift (ExceptT $ oapiGetDeptInfoWithUserForest m_dept_user_order dept_id)
                     >>= logUnexpectedEmptyResult
                           ("oapiGetDeptInfoWithUserForest should not return Nothing for dept_id: " <> toParamValue dept_id)
@@ -346,7 +346,7 @@ oapiGetDeptInfoWithUserTree :: HttpCallMonad env m
 -- {{{1
 oapiGetDeptInfoWithUserTree m_dept_user_order dept_id = runExceptT $ runMaybeT $ do
   dept_info <- MaybeT $ ExceptT $ oapiGetDeptSimpleInfo dept_id
-  users <- lift $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id $$ CL.consume
+  users <- lift $ runConduit $ oapiSourceDeptUserSimpleInfo m_dept_user_order dept_id .| CL.consume
   sub_forest <- MaybeT $ ExceptT $ oapiGetDeptInfoWithUserForest m_dept_user_order dept_id
   return $ Node (DeptInfoWithUser dept_info users) sub_forest
 -- }}}1

@@ -13,6 +13,10 @@ import DingTalk.Types
 import DingTalk.Helpers
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Crypto
+
+#if MIN_VERSION_classy_prelude(1, 5, 0)
+import Control.Concurrent (threadDelay)
+#endif
 -- }}}1
 
 
