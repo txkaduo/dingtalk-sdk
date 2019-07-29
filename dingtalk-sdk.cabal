@@ -156,6 +156,7 @@ test-suite dingtalk-sdk-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   other-modules:       DingTalk.OAPI.CryptoSpec
+                       DingTalk.MiscSpec
 
   build-depends:       base
                      , classy-prelude
@@ -172,3 +173,4 @@ test-suite dingtalk-sdk-test
   default-extensions: NoImplicitPrelude
                       OverloadedStrings
                       ScopedTypeVariables
+                      CPP

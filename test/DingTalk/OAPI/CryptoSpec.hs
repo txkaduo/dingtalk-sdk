@@ -3,7 +3,10 @@ module DingTalk.OAPI.CryptoSpec where
 -- {{{1
 import ClassyPrelude
 import Data.Either
-import Control.Exception (ErrorCall(..), evaluate)
+import Control.Exception (ErrorCall(..))
+#if !MIN_VERSION_classy_prelude(1, 5, 0)
+import Control.Exception (evaluate)
+#endif
 import Test.Hspec
 import DingTalk.OAPI.Crypto
 import DingTalk.Types
