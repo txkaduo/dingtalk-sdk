@@ -141,6 +141,7 @@ data FormComponentValue = FormCompValueText Text    -- ^ 普通文字输入框
                         | FormCompValueImages (NonEmpty (Either Text MediaId)) -- ^ 最多9张图片
                         -- FIXME: 文档有提过可以用 media_id ，但按现在的代码测试是图片是烂的
                         | FormCompValueDetails (NonEmpty FormCompValueNameValues)
+                        | FormCompValueContact (NonEmpty UserId) -- ^ 内部联系人
                         deriving (Show)
 
 type FormCompValueNameValues = Map Text FormComponentValue
@@ -149,6 +150,7 @@ instance ToJSON FormComponentValue where
   toJSON (FormCompValueText t)            = toJSON t
   toJSON (FormCompValueImages url_or_ids) = toJSON $ A.encodeToLazyText $ map (either id toParamValue) $ toList url_or_ids
   toJSON (FormCompValueDetails kvs_list)  = toJSON $ A.encodeToLazyText $ map formComponentNameValuesToJson $ toList kvs_list
+  toJSON (FormCompValueContact contacts) = toJSON $ A.encodeToLazyText $ map toParamValue $ toList contacts
 
 
 formComponentNameValueToJson :: (Text, FormComponentValue) -> Value
