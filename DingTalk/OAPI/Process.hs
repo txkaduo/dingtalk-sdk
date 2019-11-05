@@ -152,6 +152,9 @@ instance ToJSON FormComponentValue where
   toJSON (FormCompValueDetails kvs_list)  = toJSON $ A.encodeToLazyText $ map formComponentNameValuesToJson $ toList kvs_list
   toJSON (FormCompValueContact contacts) = toJSON $ A.encodeToLazyText $ map toParamValue $ toList contacts
 
+instance IsString FormComponentValue where
+  fromString = FormCompValueText . fromString
+
 
 formComponentNameValueToJson :: (Text, FormComponentValue) -> Value
 formComponentNameValueToJson (k, v) = object [ "name" .= k, "value" .= v ]
