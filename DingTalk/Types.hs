@@ -77,6 +77,12 @@ NEWTYPE_DEF_TEXT(ProcessBizId)
 
 NEWTYPE_DEF_TEXT(ProcessTaskId)
 
+-- | 日志模板标识
+NEWTYPE_DEF_TEXT(ReportCode)
+
+-- | 日志唯一id
+NEWTYPE_DEF_TEXT(ReportId)
+
 
 NEWTYPE_DEF(AgentId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup

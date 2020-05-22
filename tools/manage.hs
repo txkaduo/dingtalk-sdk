@@ -11,6 +11,7 @@ import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.List.NonEmpty (some1, NonEmpty)
 import qualified Data.Text as T
+import           Data.Time
 import           Data.Time.Clock.POSIX
 import           Data.Tree
 import           Network.HTTP.Client   (streamFile)
@@ -31,6 +32,40 @@ import Control.Monad.Trans.Control
 #endif
 -- }}}1
 
+data TimestampSpec = TS_TimeOfDay TimeOfDay
+                   | TS_Day Day
+                   | TS_LocalTime LocalTime
+                   deriving (Show)
+
+readTimeOfDay :: ReadM TimeOfDay
+readTimeOfDay = str >>= parseTimeM True defaultTimeLocale "%R"
+
+readLocalTime :: ReadM LocalTime
+readLocalTime = str >>= parseTimeM True defaultTimeLocale "%F %R"
+
+readDay :: ReadM Day
+readDay = str >>= parseTimeM True defaultTimeLocale "%Y-%m-%d"
+
+readTimestampSpec :: ReadM TimestampSpec
+readTimestampSpec = fmap TS_TimeOfDay readTimeOfDay
+                <|> fmap TS_Day readDay
+                <|> fmap TS_LocalTime readLocalTime
+
+timestampFromSpec :: MonadIO m => TimestampSpec -> m Timestamp
+-- {{{1
+timestampFromSpec spec = do
+  tz <- liftIO getCurrentTimeZone
+  fmap (timestampFromPOSIXTime . utcTimeToPOSIXSeconds . localTimeToUTC tz) $
+    case spec of
+      TS_LocalTime lt -> pure lt
+      TS_Day d -> pure $ LocalTime d midnight
+      TS_TimeOfDay tod -> do
+        now <- liftIO getCurrentTime
+        let today = localDay $ utcToLocalTime tz now
+        pure $ LocalTime today tod
+-- }}}1
+
+
 data ManageCmd = Scopes
                | SearchUser Text
                | ShowUserDetailsById UserId
@@ -48,6 +83,8 @@ data ManageCmd = Scopes
                | DeleteCallback
                | PunchResult Day Day (NonEmpty UserId)
                | PunchDetails Day Day (NonEmpty UserId)
+               | VisibleReportTemplates (Maybe UserId)
+               | QueryReports TimestampSpec TimestampSpec (Maybe UserId) (Maybe Text)
                deriving (Show)
 
 data Options = Options
@@ -170,6 +207,21 @@ manageCmdParser = subparser $
             )
         (progDesc "打卡详情")
       )
+  <> command "visible-report-templates"
+      (info (helper <*> pure VisibleReportTemplates <*> optional (UserId <$> option auto (long "user" <> metavar "USER_ID"))
+            )
+            (progDesc "可见的日志模板")
+      )
+  <> command "query-reports"
+      (info (helper <*> pure QueryReports
+                    <*> argument readTimestampSpec (metavar "START_TIME")
+                    <*> argument readTimestampSpec (metavar "END_TIME")
+                    <*> optional (UserId <$> option auto (long "user" <> metavar "USER_ID"))
+                    <*> optional (fromString <$> strOption (long "name" <> metavar "TEMPLATE_NAME"))
+            )
+            (progDesc "取得日志")
+      )
+
 -- }}}1
 
 
@@ -467,6 +519,26 @@ start opts api_env = flip runReaderT api_env $ do
         Right results -> do
           mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
 
+
+    VisibleReportTemplates m_user_id -> do
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ runConduit $ oapiSourceVisibleReportTemplates m_user_id .| CL.consume
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
+
+    QueryReports start_time end_time m_user_id m_template_name -> do
+      start_time' <- timestampFromSpec start_time
+      end_time' <- timestampFromSpec end_time
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ runConduit $ oapiSourceReports (start_time', end_time') m_user_id m_template_name .| CL.consume
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
   where
     corp_id = optCorpId opts
     corp_secret = optCorpSecret opts

@@ -34,6 +34,7 @@ library
                        DingTalk.OAPI.Message.CorpConversation
                        DingTalk.OAPI.Process
                        DingTalk.OAPI.Attendance
+                       DingTalk.OAPI.Report
                        DingTalk.OAPI.ErrorCode
                        DingTalk.JS
                        DingTalk.Yesod

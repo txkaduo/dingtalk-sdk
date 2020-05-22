@@ -10,6 +10,7 @@ module DingTalk
   , module DingTalk.OAPI.Message.CorpConversation
   , module DingTalk.OAPI.Process
   , module DingTalk.OAPI.Attendance
+  , module DingTalk.OAPI.Report
   , module DingTalk.OAPI.Callback
   , module DingTalk.JS
   , module DingTalk.Yesod
@@ -31,5 +32,6 @@ import DingTalk.Misc
 import DingTalk.OAPI.Message.CorpConversation
 import DingTalk.OAPI.Process
 import DingTalk.OAPI.Attendance
+import DingTalk.OAPI.Report
 import DingTalk.OAPI.Callback
 import DingTalk.OAPI.ErrorCode
