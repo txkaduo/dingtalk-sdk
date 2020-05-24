@@ -1,8 +1,9 @@
 module DingTalk.OAPI.Attendance
   ( AttendCheckType(..), PunchSourceType(..), PunchTimeResult(..), PunchLocationResult(..)
+  , oapiGetAttendPunchResultsMaxBatch
   , AttendPunchDetails(..), oapiGetAttendPunchDetails
   , AttendPunchResult(..), oapiGetAttendPunchResults
-  , oapiGetAttendPunchResultsMaxBatch, oapiSourceAttendPunchResults
+  , oapiGetAttendPunchMaxDaySpan, oapiSourceAttendPunchResults
   ) where
 
 -- {{{1 imports
@@ -13,10 +14,20 @@ import qualified Data.Aeson.Extra     as AE
 import           Data.Conduit
 import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Proxy
+import           Data.Time
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
 -- }}}1
+
+
+oapiGetAttendPunchResultsMaxBatch :: Int
+oapiGetAttendPunchResultsMaxBatch = 50
+
+
+-- | 获取打卡详情 及 获取打卡结果，时间跨度不能大于 7 天
+oapiGetAttendPunchMaxDaySpan :: Integer
+oapiGetAttendPunchMaxDaySpan = 7
 
 
 -- | 考勤类型
@@ -224,13 +235,13 @@ instance ToJSON AttendPunchDetails where
 
 
 -- | 获取打卡详情
-oapiGetAttendPunchDetails :: HttpCallMonad env m
-                          => Maybe Bool
-                          -> NonEmpty UserId
-                          -> (Day, Day)
-                          -> OapiRpcWithAtk m [AttendPunchDetails]
+oapiGetAttendPunchDetailsInternal :: HttpCallMonad env m
+                                  => Maybe Bool
+                                  -> NonEmpty UserId
+                                  -> (Day, Day) -- ^ 时间跨度不能大于 7 日
+                                  -> OapiRpcWithAtk m [AttendPunchDetails]
 -- {{{1
-oapiGetAttendPunchDetails m_if_i18n user_ids (begin_day0, end_day0) =
+oapiGetAttendPunchDetailsInternal m_if_i18n user_ids (begin_day0, end_day0) =
   oapiPostCallWithAtk "/attendance/listRecord"
     []
     ( object $ catMaybes
@@ -243,6 +254,26 @@ oapiGetAttendPunchDetails m_if_i18n user_ids (begin_day0, end_day0) =
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "recordresult"))
   where (begin_day, end_day) = (uncurry min &&& uncurry max) (begin_day0, end_day0)
         day_str = formatTime defaultTimeLocale "%Y-%m-%d 00:00:00"
+-- }}}1
+
+
+-- | 获取打卡详情: 不限时间跨度的版本
+oapiGetAttendPunchDetails :: HttpCallMonad env m
+                          => Maybe Bool
+                          -> NonEmpty UserId
+                          -> (Day, Day)
+                          -> OapiRpcWithAtk m [AttendPunchDetails]
+-- {{{1
+oapiGetAttendPunchDetails m_if_i18n user_ids (begin_day0, end_day0) = loop begin_day0 end_day0
+  where raw_get = oapiGetAttendPunchDetailsInternal m_if_i18n user_ids
+        loop b e = do
+          let e' = addDays oapiGetAttendPunchMaxDaySpan b
+          if e > e'
+             then do
+               lst1 <- raw_get (b, e')
+               lst2 <- loop (addDays 1 e') e
+               return $ lst1 <> lst2
+             else raw_get (b, e)
 -- }}}1
 
 
@@ -307,7 +338,7 @@ instance ToJSON AttendPunchResult where
 oapiGetAttendPunchResults :: HttpCallMonad env m
                           => Maybe Bool
                           -> NonEmpty UserId
-                          -> (Day, Day)
+                          -> (Day, Day) -- ^ 时间跨度不能大于 7 天
                           -> Int  -- ^ limit
                           -> Int -- ^ offset
                           -> OapiRpcWithAtk m ([AttendPunchResult], Bool)
@@ -331,22 +362,24 @@ oapiGetAttendPunchResults m_if_i18n user_ids (begin_day0, end_day0) limit offset
 -- }}}1
 
 
-oapiGetAttendPunchResultsMaxBatch :: Int
-oapiGetAttendPunchResultsMaxBatch = 50
-
-
 oapiSourceAttendPunchResults :: HttpCallMonad env m
                              => Maybe Bool
                              -> NonEmpty UserId
                              -> (Day, Day)
                              -> OapiRpcWithAtkSource m AttendPunchResult
 -- {{{1
-oapiSourceAttendPunchResults m_if_i18n user_ids (begin_day, end_day) = loop 0
+oapiSourceAttendPunchResults m_if_i18n user_ids (begin_day, end_day) = loop2 begin_day end_day
   where limit = oapiGetAttendPunchResultsMaxBatch
-        loop offset = do
-          (list, has_more) <- lift $ ExceptT $ oapiGetAttendPunchResults m_if_i18n user_ids (begin_day, end_day) limit offset
+        loop b e offset = do
+          (list, has_more) <- lift $ ExceptT $ oapiGetAttendPunchResults m_if_i18n user_ids (b, e) limit offset
           mapM_ yield list
-          when has_more $ loop (offset + limit)
+          when has_more $ loop b e (offset + limit)
+
+        loop2 b e =
+          if e > e'
+             then loop b e' 0 >> loop2 (addDays 1 e') e
+             else loop b e 0
+          where e' = addDays oapiGetAttendPunchMaxDaySpan b
 -- }}}1
 
 -- vim: set foldmethod=marker:
