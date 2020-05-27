@@ -3,7 +3,7 @@ module DingTalk.OAPI.Process
   , maxOapiGetProcessBatchSize
   , oapiGetProcessListByUser
   , oapiSourceProcessListByUser
-  , CcTiming(..), FormComponentValue(..), FormCompValueNameValues
+  , CcTiming(..), FormComponentValue(..), FormCompValueNameValues, ToFormComponentValue(..)
   , (@=), (@=!), (@=?)
   , oapiCreateProcessInstance
   , maxOapiGetProcessInstBatchSize
@@ -140,8 +140,13 @@ instance ToJSON CcTiming where
 data FormComponentValue = FormCompValueText Text    -- ^ 普通文字输入框
                         | FormCompValueImages (NonEmpty (Either Text MediaId)) -- ^ 最多9张图片
                         -- FIXME: 文档有提过可以用 media_id ，但按现在的代码测试是图片是烂的
+                        -- UPDATE: 当前最新文档明确只能使用文本URL，这里的代码待更新
                         | FormCompValueDetails (NonEmpty FormCompValueNameValues)
                         | FormCompValueContact (NonEmpty UserId) -- ^ 内部联系人
+                        | FormCompValueDay Day
+                        | FormCompValueDayRange Day Day
+                        | FormCompValueInt Integer
+                        | FormCompValueDouble Double
                         deriving (Show)
 
 type FormCompValueNameValues = Map Text FormComponentValue
@@ -150,10 +155,30 @@ instance ToJSON FormComponentValue where
   toJSON (FormCompValueText t)            = toJSON t
   toJSON (FormCompValueImages url_or_ids) = toJSON $ A.encodeToLazyText $ map (either id toParamValue) $ toList url_or_ids
   toJSON (FormCompValueDetails kvs_list)  = toJSON $ A.encodeToLazyText $ map formComponentNameValuesToJson $ toList kvs_list
-  toJSON (FormCompValueContact contacts) = toJSON $ A.encodeToLazyText $ map toParamValue $ toList contacts
+  toJSON (FormCompValueContact contacts)  = toJSON $ A.encodeToLazyText $ map toParamValue $ toList contacts
+  toJSON (FormCompValueDay day)           = toJSON $ formatTime defaultTimeLocale "%Y-%m-%d" day
+
+  toJSON (FormCompValueDayRange d1 d2)    = let to_str = formatTime defaultTimeLocale "%Y-%m-%d"
+                                             in toJSON $ A.encodeToLazyText [ to_str d1, to_str d2 ]
+
+  toJSON (FormCompValueInt x)             = toJSON $ tshow x
+  toJSON (FormCompValueDouble x)          = toJSON $ tshow x
 
 instance IsString FormComponentValue where
   fromString = FormCompValueText . fromString
+
+
+class ToFormComponentValue a where
+  toFormComponentValue ::  a -> FormComponentValue
+
+instance ToFormComponentValue Text where toFormComponentValue = FormCompValueText
+instance ToFormComponentValue String where toFormComponentValue = FormCompValueText . fromString
+instance ToFormComponentValue (NonEmpty UserId) where toFormComponentValue = FormCompValueContact
+instance ToFormComponentValue Day where toFormComponentValue = FormCompValueDay
+instance ToFormComponentValue (Day, Day) where toFormComponentValue = uncurry FormCompValueDayRange
+instance ToFormComponentValue (NonEmpty FormCompValueNameValues) where toFormComponentValue = FormCompValueDetails
+instance ToFormComponentValue Int where toFormComponentValue = FormCompValueInt . fromIntegral
+instance ToFormComponentValue Double where toFormComponentValue = FormCompValueDouble
 
 
 formComponentNameValueToJson :: (Text, FormComponentValue) -> Value
@@ -163,17 +188,18 @@ formComponentNameValuesToJson :: Map Text FormComponentValue -> [Value]
 formComponentNameValuesToJson = map formComponentNameValueToJson . mapToList
 
 
-(@=) :: Text -> Text -> (Text, FormComponentValue)
+(@=) :: ToFormComponentValue a => Text -> a -> (Text, FormComponentValue)
 infix 3 @=
-(@=) n v = (n, FormCompValueText v)
+(@=) n v = (n, toFormComponentValue v)
 
 infix 3 @=!, @=?
 
-(@=!) :: Text -> Text -> Maybe (Text, FormComponentValue)
+(@=!) :: ToFormComponentValue a => Text -> a -> Maybe (Text, FormComponentValue)
 (@=!) = (. Just) . (@=?)
 
-(@=?) :: Text -> Maybe Text -> Maybe (Text, FormComponentValue)
+(@=?) :: ToFormComponentValue a => Text -> Maybe a -> Maybe (Text, FormComponentValue)
 (@=?) = fmap . (@=)
+
 
 -- | 发起审批实例
 oapiCreateProcessInstance :: HttpCallMonad env m
