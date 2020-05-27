@@ -27,6 +27,7 @@ import           Data.Conduit
 import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Proxy
 import           Data.Time
+import           Money
 
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
@@ -147,6 +148,7 @@ data FormComponentValue = FormCompValueText Text    -- ^ 普通文字输入框
                         | FormCompValueDayRange Day Day
                         | FormCompValueInt Integer
                         | FormCompValueDouble Double
+                        | FormCompValueCNY (Dense "CNY")
                         deriving (Show)
 
 type FormCompValueNameValues = Map Text FormComponentValue
@@ -163,6 +165,8 @@ instance ToJSON FormComponentValue where
 
   toJSON (FormCompValueInt x)             = toJSON $ tshow x
   toJSON (FormCompValueDouble x)          = toJSON $ tshow x
+  toJSON (FormCompValueCNY x)             = toJSON $ denseToDecimal defaultDecimalConf Round x
+
 
 instance IsString FormComponentValue where
   fromString = FormCompValueText . fromString
@@ -179,6 +183,7 @@ instance ToFormComponentValue (Day, Day) where toFormComponentValue = uncurry Fo
 instance ToFormComponentValue (NonEmpty FormCompValueNameValues) where toFormComponentValue = FormCompValueDetails
 instance ToFormComponentValue Int where toFormComponentValue = FormCompValueInt . fromIntegral
 instance ToFormComponentValue Double where toFormComponentValue = FormCompValueDouble
+instance ToFormComponentValue (Dense "CNY") where toFormComponentValue = FormCompValueCNY
 
 
 formComponentNameValueToJson :: (Text, FormComponentValue) -> Value
