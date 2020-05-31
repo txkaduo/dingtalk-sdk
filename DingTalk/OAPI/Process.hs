@@ -5,7 +5,7 @@ module DingTalk.OAPI.Process
   , oapiSourceProcessListByUser
   , CcTiming(..), FormComponentValue(..), FormCompValueNameValues, ToFormComponentValue(..)
   , (@=), (@=!), (@=?)
-  , oapiCreateProcessInstance
+  , ConcensusType(..), Approvers, ToApprovers(..), oapiCreateProcessInstance
   , maxOapiGetProcessInstBatchSize
   , ProcessInstListResponse(..)
   , oapiGetProcessInstanceIdList, oapiSourceProcessInstId
@@ -27,9 +27,11 @@ import           Data.Conduit
 import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Proxy
 import           Data.Time
+import qualified Data.Set.NonEmpty as NES
 import           Money
 
 import DingTalk.OAPI.Basic
+import DingTalk.OAPI.Contacts
 import DingTalk.Helpers
 
 #if MIN_VERSION_classy_prelude(1, 5, 0)
@@ -206,13 +208,47 @@ infix 3 @=!, @=?
 (@=?) = fmap . (@=)
 
 
+data ConcensusType = ConcensusAnd -- ^ 会签
+                   | ConcensusOr  -- ^ 或签
+                   deriving (Show, Eq, Ord, Enum, Bounded)
+
+instance ToJSON ConcensusType where
+  toJSON ConcensusAnd = toJSON $ asText "AND"
+  toJSON ConcensusOr = toJSON $ asText "OR"
+
+
+-- Don't export constructor
+data Approvers = ApproverSingle UserId
+               | ApproverMulti ConcensusType (NES.NESet UserId)
+
+instance ToJSON Approvers where
+  toJSON (ApproverSingle uid)   = object [ "user_ids" .= [ uid ], "task_action_type" .= asText "NONE" ]
+  toJSON (ApproverMulti t uids) = object [ "user_ids" .= NES.toList uids, "task_action_type" .= t ]
+
+
+-- | Smart constructor
+class ToApprovers a where
+  toApprovers :: ConcensusType -> a -> Approvers
+
+
+instance ToApprovers (NES.NESet UserId) where
+  toApprovers t uids =
+    if NES.size uids == 1
+       then ApproverSingle (NES.findMin uids)
+       else ApproverMulti t uids
+
+instance ToApprovers (NES.NESet UserDetails) where
+  toApprovers t = toApprovers t . NES.map userDetailsUserId
+
+
+
 -- | 发起审批实例
 oapiCreateProcessInstance :: HttpCallMonad env m
                           => Maybe AgentId  -- ^ 企业应用标识(ISV调用必须设置)
                           -> ProcessCode
                           -> UserId     -- ^ 发起人
                           -> DeptId     -- ^ 发起人所属部门. 不明白为什么要传这个钉钉系统本身应该知道的信息
-                          -> Maybe (NonEmpty UserId)  -- ^ 审批人
+                          -> Maybe (NonEmpty Approvers)  -- ^ 审批人
                           -> Maybe (NonEmpty UserId, CcTiming) -- ^ 抄送人
                           -> FormCompValueNameValues
                           -> OapiRpcWithAtk m ProcessInstanceId
@@ -225,7 +261,7 @@ oapiCreateProcessInstance m_agent_id proc_code user_id dept_id m_approvers m_cc_
         , Just $ "process_code" .= proc_code
         , Just $ "originator_user_id" .= user_id
         , Just $ "dept_id" .= dept_id
-        , (("approvers" .=) . intercalate "," . map toParamValue) <$> m_approvers
+        , ("approvers_v2" .=) <$> m_approvers
         , ("cc_list" .=) . intercalate "," . map toParamValue <$> m_cc_list
         , ("cc_position" .=) <$> m_cc_timing
         , Just $ "form_component_values" .= formComponentNameValuesToJson form_vals

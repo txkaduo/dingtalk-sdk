@@ -23,6 +23,7 @@ import           System.Log.FastLogger (LoggerSet, newStderrLoggerSet,
                                         pushLogStr)
 import           System.Exit
 import           Text.Show.Unicode (ushow)
+import qualified Data.Set.NonEmpty as NES
 
 import DingTalk
 import DingTalk.Helpers
@@ -483,7 +484,7 @@ start opts api_env = flip runReaderT api_env $ do
                                         >>= maybe (fail "user not found") return
                                         >>= maybe (fail "user does not belong to any dept") return . listToMaybe
 
-                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id (Just approvers) Nothing inputs_map
+                      ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id (Just $ pure $ toApprovers ConcensusAnd (NES.fromList approvers) ) Nothing inputs_map
 
       case err_or_res of
         Left err -> do
