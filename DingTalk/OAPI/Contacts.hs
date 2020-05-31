@@ -401,6 +401,9 @@ data UserDetails = UserDetails
   deriving (Show, Eq)
 
 -- {{{1 instances
+instance Ord UserDetails where
+  compare = compare `on` userDetailsUserId
+
 instance FromJSON UserDetails where
   parseJSON = withObject "UserDetails" $ \ o ->
                 UserDetails <$> o .: "userid"
