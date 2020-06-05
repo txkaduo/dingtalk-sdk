@@ -177,6 +177,7 @@ instance IsString FormComponentValue where
 class ToFormComponentValue a where
   toFormComponentValue ::  a -> FormComponentValue
 
+instance ToFormComponentValue FormComponentValue where toFormComponentValue = id
 instance ToFormComponentValue Text where toFormComponentValue = FormCompValueText
 instance ToFormComponentValue String where toFormComponentValue = FormCompValueText . fromString
 instance ToFormComponentValue (NonEmpty UserId) where toFormComponentValue = FormCompValueContact
