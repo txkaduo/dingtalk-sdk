@@ -95,7 +95,8 @@ data ReportInfo = ReportInfo
   , riCreatorId    :: UserId
   , riCreateTime   :: Timestamp
   , riModifiedTime :: Timestamp
-  , riDeptName     :: Text
+  -- 测试时似乎有时候会无这个字段
+  -- , riDeptName     :: Text
   , riTemplateName :: Text
   , riRemark       :: Text
   , riContents     :: [ReportContentEntry]
