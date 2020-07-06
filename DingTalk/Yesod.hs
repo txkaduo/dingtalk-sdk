@@ -2,6 +2,11 @@ module DingTalk.Yesod where
 
 -- {{{1 imports
 import           ClassyPrelude.Yesod hiding (requestHeaders)
+#if MIN_VERSION_base(4, 13, 0)
+import           Control.Monad (MonadFail(..))
+#else
+#endif
+
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Except
 import           Yesod.Core.Types (HandlerContents(HCError))
@@ -143,7 +148,7 @@ handlerDingTalkLoginUrl return_url = do
 
 -- | 使用钉钉登录，并返回UserId到原处理逻辑．实际上可能发生多次重定向
 handlerDingTalkLoginComeBack :: ( MonadHandler m
-                                , MonadLoggerIO m
+                                , MonadLoggerIO m, MonadFail m
                                 , Yesod (HandlerSite m)
                                 , HasDingTalkLoginAppId (HandlerSite m)
                                 , HasDingTalkCorpId (HandlerSite m)

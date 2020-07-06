@@ -2,6 +2,10 @@ module Main where
 
 -- {{{1 imports
 import           ClassyPrelude
+#if MIN_VERSION_base(4, 13, 0)
+import           Control.Monad (MonadFail(..))
+#else
+#endif
 import           Control.Lens         hiding ((.=), argument)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
@@ -249,7 +253,7 @@ enumStringReader type_prompt = do
         (parseEnumParamValueText $ fromString s)
 -- }}}1
 
-start :: (MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
+start :: (MonadFail m, MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
       => Options
       -> HttpApiRunEnv t
       -> m ()

@@ -3,6 +3,11 @@ module DingTalk.Helpers where
 
 -- {{{1 imports
 import           ClassyPrelude
+#if MIN_VERSION_base(4, 13, 0)
+import           Control.Monad (MonadFail(..))
+#else
+#endif
+
 import           Control.Lens         hiding ((.=))
 import           Control.Monad.Logger
 import qualified Control.Monad.Logger.CallStack as LCS
