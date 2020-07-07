@@ -253,7 +253,7 @@ enumStringReader type_prompt = do
         (parseEnumParamValueText $ fromString s)
 -- }}}1
 
-start :: (MonadFail m, MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
+start :: (MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
       => Options
       -> HttpApiRunEnv t
       -> m ()
