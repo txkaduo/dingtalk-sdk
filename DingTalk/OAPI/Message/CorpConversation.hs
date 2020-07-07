@@ -4,7 +4,9 @@ module DingTalk.OAPI.Message.CorpConversation where
 import           ClassyPrelude
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
+#if !MIN_VERSION_base(4, 13, 0)
 import           Data.Either (partitionEithers)
+#endif
 import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Proxy
 

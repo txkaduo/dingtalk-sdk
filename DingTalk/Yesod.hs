@@ -3,10 +3,11 @@ module DingTalk.Yesod where
 -- {{{1 imports
 import           ClassyPrelude.Yesod hiding (requestHeaders)
 #if MIN_VERSION_base(4, 13, 0)
-import           Control.Monad (MonadFail(..))
+-- import           Control.Monad (MonadFail(..))
 #else
 #endif
 
+import           Control.Monad.Catch (throwM)
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Except
 import           Yesod.Core.Types (HandlerContents(HCError))
@@ -148,7 +149,7 @@ handlerDingTalkLoginUrl return_url = do
 
 -- | 使用钉钉登录，并返回UserId到原处理逻辑．实际上可能发生多次重定向
 handlerDingTalkLoginComeBack :: ( MonadHandler m
-                                , MonadLoggerIO m, MonadFail m
+                                , MonadLoggerIO m, MonadThrow m
                                 , Yesod (HandlerSite m)
                                 , HasDingTalkLoginAppId (HandlerSite m)
                                 , HasDingTalkCorpId (HandlerSite m)
@@ -191,11 +192,11 @@ handlerDingTalkLoginComeBack show_widget = do
 
                 Right (union_id, Nothing) -> do
                   $logErrorS logSourceName $ "Could not found UserId by UnionId: " <> toParamValue union_id
-                  fail $ "钉钉接口错误，请稍后重试(UnionId Error)"
+                  throwM $ userError $ "钉钉接口错误，请稍后重试(UnionId Error)"
 
                 Left err -> do
                   $logErrorS logSourceName $ "DingTalk api error: " <> tshow err
-                  fail $ "钉钉接口错误，请稍后重试"
+                  throwM $ userError $ "钉钉接口错误，请稍后重试"
 
           | otherwise -> do
               rdr_url <- get_rdr_url

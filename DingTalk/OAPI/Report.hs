@@ -10,7 +10,7 @@ module DingTalk.OAPI.Report
 import           ClassyPrelude
 import           Control.Monad.Except hiding (mapM_)
 import           Data.Aeson           as A
-import           Data.Aeson.TH                 (deriveJSON, fieldLabelModifier, defaultOptions)
+import           Data.Aeson.TH
 import           Data.Conduit
 
 import DingTalk.OAPI.Basic

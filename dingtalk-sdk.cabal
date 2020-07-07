@@ -49,6 +49,7 @@ library
                      , text
                      , containers
                      , aeson
+                     , exceptions
                      , aeson-extra
                      , aeson-pretty
                      , shakespeare
