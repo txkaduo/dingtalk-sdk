@@ -131,14 +131,14 @@ oapiAccessTokenTTL :: Num a => a
 oapiAccessTokenTTL = fromIntegral (7200 :: Int)
 
 oapiGetAccessToken :: HttpCallMonad env m
-                   => CorpId
-                   -> CorpSecret
+                   => AppKey
+                   -> AppSecret
                    -> m (Either OapiError AccessToken)
 -- {{{1
-oapiGetAccessToken corp_id corp_secret = do
+oapiGetAccessToken app_key app_secret = do
   oapiGetCall "/gettoken"
-    [ "corpid" &= corp_id
-    , "corpsecret" &= corp_secret
+    [ "appkey" &= app_key
+    , "appsecret" &= app_secret
     ]
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "access_token"))
 -- }}}1

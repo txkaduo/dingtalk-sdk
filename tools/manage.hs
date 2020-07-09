@@ -94,8 +94,8 @@ data ManageCmd = Scopes
 
 data Options = Options
   { optVerbose    :: Int
-  , optCorpId     :: CorpId
-  , optCorpSecret :: CorpSecret
+  , optAppKey     :: AppKey
+  , optAppSecret  :: AppSecret
   , optCommand    :: ManageCmd
   }
 
@@ -106,8 +106,8 @@ optionsParse = Options
                         $ long "verbose" <> short 'v' <> value 1
                         <> metavar "LEVEL"
                         <> help "Verbose Level (0 - 3)")
-                <*> fmap (CorpId . fromString) (strOption (long "corp-id" <> short 'i' <> metavar "CORP_ID"))
-                <*> fmap (CorpSecret . fromString) (strOption (long "corp-secret" <> short 's' <> metavar "CORP_SECRET"))
+                <*> fmap (AppKey . fromString) (strOption (long "app-key" <> short 'a' <> metavar "APP_KEY"))
+                <*> fmap (AppSecret . fromString) (strOption (long "app-secret" <> short 's' <> metavar "APP_SECRET"))
                 <*> manageCmdParser
 -- }}}1
 
@@ -545,8 +545,8 @@ start opts api_env = flip runReaderT api_env $ do
         Right results -> do
           mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
   where
-    corp_id = optCorpId opts
-    corp_secret = optCorpSecret opts
+    corp_id = optAppKey opts
+    corp_secret = optAppSecret opts
 -- }}}1
 
 
