@@ -485,8 +485,8 @@ start opts api_env = flip runReaderT api_env $ do
                                    Nothing -> do
                                      -- 随便选一个部门
                                      fmap (fmap userDetailsDepartments) (ExceptT $ oapiGetUserDetails user_id)
-                                        >>= maybe (fail "user not found") return
-                                        >>= maybe (fail "user does not belong to any dept") return . listToMaybe
+                                        >>= maybe (throwIO $ userError "user not found") return
+                                        >>= maybe (throwIO $ userError "user does not belong to any dept") return . listToMaybe
 
                       ExceptT $ oapiCreateProcessInstance Nothing proc_code user_id dept_id (Just $ pure $ toApprovers ConcensusAnd (NES.fromList approvers) ) Nothing inputs_map
 
