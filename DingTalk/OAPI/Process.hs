@@ -362,6 +362,7 @@ data ProcessOpType = ProcessOpExecuteTaskNormal           -- ^ 正常执行任�
                    | ProcessOpTerminateProcessInst        -- ^ 终止(撤销)流程实例
                    | ProcessOpFinishProcessInst           -- ^ 结束流程实例
                    | ProcessOpAddRemark                   -- ^ 添加评论
+                   | ProcessOpCc                          -- ^ 不在文档中，运行时发现，应该是抄送之意
                    | ProcessOpTypeNone                        -- ^ 文档没有说明。看起来像是或签时取消未操作任务。
                    deriving (Show, Eq, Ord, Enum, Bounded)
 
@@ -376,6 +377,7 @@ instance ParamValue ProcessOpType where
   toParamValue ProcessOpTerminateProcessInst = "TERMINATE_PROCESS_INSTANCE"
   toParamValue ProcessOpFinishProcessInst    = "FINISH_PROCESS_INSTANCE"
   toParamValue ProcessOpAddRemark            = "ADD_REMARK"
+  toParamValue ProcessOpCc                   = "PROCESS_CC"
   toParamValue ProcessOpTypeNone             = "NONE"
 
 instance ToJSON ProcessOpType where toJSON = toJSON . toParamValue
