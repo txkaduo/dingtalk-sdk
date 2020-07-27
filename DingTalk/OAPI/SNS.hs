@@ -1,9 +1,5 @@
 module DingTalk.OAPI.SNS
-  ( oapiSnsGetAccessToken, oapiSnsAccessTokenTTL
-  , oapiSnsGetPersistentAuthCodeTTL
-  , SnsPersistentAuthCodeResp(..), oapiSnsGetPersistentAuthCode
-  , oapiSnsGetUserSnsToken
-  , SnsUserInfo(..), oapiSnsGetUserInfo
+  ( SnsUserInfo(..), oapiSnsGetUserInfoByTmpAuthCode
   , oapiSnsQrCodeLoginRedirectUrl, oapiSnsDingTalkLoginRedirectUrl
   , validateSnsTmpAuthCode
   , oapiGetCallWithSnsAtk, oapiPostCallWithSnsAtk
@@ -12,76 +8,24 @@ module DingTalk.OAPI.SNS
 
 -- {{{1 imports
 import           ClassyPrelude
+import           Control.Monad.Logger
 import qualified Data.ByteString.Builder as BB
 import           Data.Aeson           as A
 import qualified Data.Aeson.Extra     as AE
 import           Data.Proxy
+import           Data.Time.Clock.POSIX
 import           Network.HTTP.Types   (renderQueryText)
 import           Network.Wreq.Types   (Postable)
 
+import DingTalk.OAPI.Crypto (snsCallSignaturePure)
 import DingTalk.OAPI.Basic
 import DingTalk.Helpers
 -- }}}1
 
 
--- | 获取开放应用的access token
-oapiSnsGetAccessToken :: HttpCallMonad env m
-                      => SnsAppId
-                      -> SnsAppSecret
-                      -> m (Either OapiError SnsAccessToken)
--- {{{1
-oapiSnsGetAccessToken app_id app_secret = do
-  oapiGetCall "/sns/gettoken"
-    [ "appid" &= app_id
-    , "appsecret" &= app_secret
-    ]
-    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "access_token"))
--- }}}1
-
-
--- | 文档说 access token 有效期固定为 7200 秒，且每次有效期内重复获取会自动续期
-oapiSnsAccessTokenTTL :: Num a => a
-oapiSnsAccessTokenTTL = fromIntegral (7200 :: Int)
-
-
--- | 永久授权码无过期时间
-oapiSnsGetPersistentAuthCodeTTL :: Num a => a
-oapiSnsGetPersistentAuthCodeTTL = fromIntegral (maxBound :: Int)
-
-
-data SnsPersistentAuthCodeResp = SnsPersistentAuthCodeResp
-  { snsPersistentAuthCodeRespOpenId   :: OpenId
-  , snsPersistentAuthCodeRespUnionId  :: UnionId
-  , snsPersistentAuthCodeRespAuthCode :: SnsPersistentAuthCode
-  }
-
-instance FromJSON SnsPersistentAuthCodeResp where
-  parseJSON = withObject "SnsPersistentAuthCodeResp" $ \ o ->
-    SnsPersistentAuthCodeResp <$> o .: "openid"
-                              <*> o .: "unionid"
-                              <*> o .: "persistent_code"
-
-
 -- | 文档无解释登录不成功会不会收到code，收到什么样的code
 validateSnsTmpAuthCode :: SnsTmpAuthCode -> Bool
 validateSnsTmpAuthCode = not . null . unSnsTmpAuthCode
-
-
-oapiSnsGetPersistentAuthCode :: HttpCallMonad env m
-                             => SnsTmpAuthCode
-                             -> ReaderT SnsAccessToken m (Either OapiError SnsPersistentAuthCodeResp)
-oapiSnsGetPersistentAuthCode tmp_auth_code =
-  oapiPostCallWithSnsAtk "/sns/get_persistent_code" [] (object [ "tmp_auth_code" .= tmp_auth_code ])
-
-
-oapiSnsGetUserSnsToken :: HttpCallMonad env m
-                       => OpenId
-                       -> SnsPersistentAuthCode
-                       -> ReaderT SnsAccessToken m (Either OapiError SnsToken)
-oapiSnsGetUserSnsToken open_id p_auth_code =
-  oapiPostCallWithSnsAtk "/sns/get_sns/token" []
-    $ object [ "openid" .= open_id, "persistent_code" .= p_auth_code ]
-
 
 
 data SnsUserInfo = SnsUserInfo
@@ -96,12 +40,25 @@ instance FromJSON SnsUserInfo where
                             <*> o .: "openid"
                             <*> o .: "unionid"
 
-oapiSnsGetUserInfo :: HttpCallMonad env m
-                   => SnsToken
-                   -> m (Either OapiError SnsUserInfo)
-oapiSnsGetUserInfo sns_token =
-  oapiGetCall "/sns/getuserinfo"
-    [ "sns_token" &= sns_token ]
+
+snsCallSignature :: MonadIO m => SnsAppSecret -> m (Timestamp, Text)
+snsCallSignature secret = do
+  ts <- liftIO $ fmap timestampFromPOSIXTime getPOSIXTime
+  pure (ts, snsCallSignaturePure secret ts)
+
+
+oapiSnsGetUserInfoByTmpAuthCode :: HttpCallMonad env m
+                                => SnsAppId
+                                -> SnsAppSecret
+                                -> SnsTmpAuthCode
+                                -> m (Either OapiError SnsUserInfo)
+oapiSnsGetUserInfoByTmpAuthCode app_id app_secret tmp_auth_code = do
+  (ts, signature) <- snsCallSignature app_secret
+  $logDebugS logSourceName $ "ts=" <> tshow ts
+  $logDebugS logSourceName $ "signature=" <> tshow signature
+  oapiPostCall "/sns/getuserinfo_bycode"
+    [ "accessKey" &= app_id, "timestamp" &= ts, "signature" &= signature ]
+    (object [ "tmp_auth_code" .= tmp_auth_code ])
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "user_info"))
 
 

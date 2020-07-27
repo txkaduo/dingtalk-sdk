@@ -46,7 +46,6 @@ instance FromJSON t where { \
                           }
 
 NEWTYPE_DEF_TEXT(AccessToken)
-NEWTYPE_DEF_TEXT(SnsAccessToken)
 NEWTYPE_DEF_TEXT(SuiteKey)
 NEWTYPE_DEF_TEXT(CorpId)
 NEWTYPE_DEF_TEXT(AppKey)
@@ -54,16 +53,18 @@ NEWTYPE_DEF_TEXT(AppSecret)
 NEWTYPE_DEF_TEXT(JsApiTicket)
 NEWTYPE_DEF_TEXT(Nonce)
 NEWTYPE_DEF_TEXT(UserId)
-NEWTYPE_DEF_TEXT(SnsAppId)
-NEWTYPE_DEF_TEXT(SnsAppSecret)
 NEWTYPE_DEF_TEXT(SnsTmpAuthCode)
-NEWTYPE_DEF_TEXT(SnsToken)
 NEWTYPE_DEF_TEXT(DeviceId)
 NEWTYPE_DEF_TEXT(MediaId)
 NEWTYPE_DEF_TEXT(OpenId)
 NEWTYPE_DEF_TEXT(UnionId)
 NEWTYPE_DEF_TEXT(MessageId)
-NEWTYPE_DEF_TEXT(SnsPersistentAuthCode)
+
+-- | 从现在文档看，登录应用取 access token 跟其它钉钉应用使用相同的接口取 access token
+-- 所以类型上不区分 SnsAppId/AppKey 等
+type SnsAppId = AppKey
+type SnsAppSecret = AppSecret
+type SnsAccessToken = AccessToken
 
 -- CallbackToken 是回调接口用的 Token
 NEWTYPE_DEF_TEXT(CallbackToken)
@@ -206,8 +207,9 @@ instance RemoteCallThrottle SomeRemoteCallThrottle where
 class HasDingTalkCorpId a where
   getDingTalkCorpId :: a -> CorpId
 
-class HasDingTalkLoginAppId a where
+class HasDingTalkLoginApp a where
   getDingTalkLoginAppId :: a -> SnsAppId
+  getDingTalkLoginAppSecret :: a -> SnsAppSecret
 
 
 data HttpApiRunEnv t = HttpApiRunEnv t WS.Session

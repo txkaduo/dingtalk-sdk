@@ -13,8 +13,11 @@ import qualified Crypto.Cipher.AES          as CN
 import qualified Crypto.Error               as CN
 import qualified Crypto.Hash                as CN
 import qualified Crypto.Cipher.Types        as CN
+import qualified Crypto.MAC.HMAC            as CN
 import qualified Crypto.Data.Padding        as CN
 import qualified Data.ByteString.Base64     as B64
+import qualified Data.ByteString.Base16     as B16
+import qualified Data.ByteArray             as BA
 import qualified Data.Text                  as T
 import           Data.Time.Clock.POSIX
 import           Network.HTTP               (urlDecode)
@@ -134,7 +137,7 @@ encryptForProcessApi (AesEnv cipher iv _) corp_or_suite random_pad msg = do
         msg_len_pad = toStrict $ Bin.runPut $ Bin.putWord32be $ fromIntegral msg_len
         key = encodeUtf8 $ either toParamValue toParamValue corp_or_suite
         block_size = CN.blockSize cipher
-        msg_to_encrypt = random_pad <> msg_len_pad <> msg <> key 
+        msg_to_encrypt = random_pad <> msg_len_pad <> msg <> key
         padded_msg = CN.pad (CN.PKCS7 block_size) msg_to_encrypt
 -- }}}1
 
@@ -181,6 +184,12 @@ signForProcessApi (CallbackToken token) timestamp (Nonce nonce) msg =
   where list = [ token, toParamValue timestamp, nonce, decodeUtf8 msg ]
 
 -- }}}1
+
+
+snsCallSignaturePure :: SnsAppSecret -> Timestamp -> Text
+snsCallSignaturePure secret (Timestamp ts) =
+  decodeUtf8 (B64.encode (BA.convert h))
+  where h = CN.hmac (encodeUtf8 $ unAppSecret secret) (encodeUtf8 $ tshow ts) :: CN.HMAC CN.SHA256
 
 
 thd3 :: (a, b, c) -> c

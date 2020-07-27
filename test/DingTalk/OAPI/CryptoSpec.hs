@@ -68,3 +68,10 @@ spec = do
 
         test_msg "this_is_the_msg"
         test_msg "success"
+
+  describe "snsCallSignaturePure" $ do
+    it "works for example as doc: https://ding-doc.dingtalk.com/doc#/faquestions/hxs5v9" $ do
+      let ts = Timestamp 1546084445901
+      let app_secret = AppSecret "testappSecret"
+      let signature = "HCbG3xNE3vzhO+u7qCUL1jS5hsu2n5r2cFhnTrtyDAE="
+      snsCallSignaturePure app_secret ts `shouldBe` signature

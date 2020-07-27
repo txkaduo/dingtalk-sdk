@@ -59,7 +59,7 @@ handlerGetDingTalkVer = do
 
 
 sessionKeyDingTalkAuthState :: SnsAppId -> Text
-sessionKeyDingTalkAuthState app_id = "dt-oauth-st|" <> unSnsAppId app_id
+sessionKeyDingTalkAuthState app_id = "dt-oauth-st|" <> unAppKey app_id
 
 
 -- | 生成随机字串作为 oauth 的state参数之用
@@ -127,7 +127,7 @@ handlerGetSessionUserId corp_id =
 
 -- | 根据是否在钉钉打开页面，选择适当的重定向入口，完成使用钉钉登录
 handlerDingTalkLoginUrl :: ( MonadHandler m
-                           , HasDingTalkLoginAppId (HandlerSite m)
+                           , HasDingTalkLoginApp (HandlerSite m)
                            )
                         => Text
                         -> m Text
@@ -151,10 +151,9 @@ handlerDingTalkLoginUrl return_url = do
 handlerDingTalkLoginComeBack :: ( MonadHandler m
                                 , MonadLoggerIO m, MonadThrow m
                                 , Yesod (HandlerSite m)
-                                , HasDingTalkLoginAppId (HandlerSite m)
+                                , HasDingTalkLoginApp (HandlerSite m)
                                 , HasDingTalkCorpId (HandlerSite m)
                                 , DingTalkAccessTokenRun (HandlerSite m)
-                                , DingTalkSnsAccessTokenRun (HandlerSite m)
                                 , ToTypedContent c
                                 )
 #if MIN_VERSION_yesod(1, 6, 0)
@@ -169,6 +168,7 @@ handlerDingTalkLoginComeBack show_widget = do
   foundation <- getYesod
   let corp_id = getDingTalkCorpId foundation
       login_app_id = getDingTalkLoginAppId foundation
+      login_app_secret = getDingTalkLoginAppSecret foundation
 
   m_uid <- handlerGetSessionUserId corp_id
   case m_uid of
@@ -179,11 +179,10 @@ handlerDingTalkLoginComeBack show_widget = do
         Just code
           | validateSnsTmpAuthCode code -> do
               log_func <- askLoggerIO
-              err_or <- liftIO $ flip runLoggingT log_func $ runExceptT $ do
-                union_id <- ExceptT $ runWithDingTalkSnsAccessToken foundation $ runExceptT $ do
-                  fmap snsPersistentAuthCodeRespUnionId $ ExceptT $ oapiSnsGetPersistentAuthCode code
-
-                fmap (union_id,) $ ExceptT $ runWithDingTalkAccessToken foundation $ oapiGetUserIdByUnionId union_id
+              err_or <- liftIO $ flip runLoggingT log_func $ runWithDingTalkAccessToken foundation $ runExceptT $ do
+                sns_user_info <- mapExceptT lift $ ExceptT $ oapiSnsGetUserInfoByTmpAuthCode login_app_id login_app_secret code
+                let union_id = snsUserInfoUnionId sns_user_info
+                fmap (union_id,) $ ExceptT $ oapiGetUserIdByUnionId union_id
 
               case err_or of
                 Right (_, Just user_id) -> do

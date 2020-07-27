@@ -5,10 +5,10 @@ module DingTalk.OAPI.Basic
   , oapiGetAccessToken, oapiAccessTokenTTL
   , UserInfoByCodeResp(..), oapiGetUserInfoByAuthCode
   , AuthOrgEntiies(..), AuthScopes(..), oapiGetAccessTokenScopes
-  , oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
+  , oapiPostCall, oapiGetCall, oapiGetCallWithAtk, oapiPostCallWithAtk
   , oapiGetCallWithAtkLike, oapiPostCallWithAtkLike
   , oapiUrlBase
-  , DingTalkAccessTokenRun(..)
+  , DingTalkHttpApiRun(..), DingTalkAccessTokenRun(..)
   , module DingTalk.Types
   ) where
 
@@ -295,8 +295,15 @@ oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
 oapiPostCallWithAtk = oapiPostCallWithAtkLike
 
 
+class DingTalkHttpApiRun a where
+  runWithDingTalkHttpEnv :: (HttpCallBaseMonad m)
+                         => a
+                         -> ReaderT HttpApiRunEnv' m r
+                         -> m r
+
 class DingTalkAccessTokenRun a where
-  runWithDingTalkAccessToken :: (HttpCallBaseMonad m) => a
+  runWithDingTalkAccessToken :: (HttpCallBaseMonad m)
+                             => a
                              -> ReaderT AccessToken (ReaderT HttpApiRunEnv' m) r
                              -> m r
 
