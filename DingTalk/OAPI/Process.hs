@@ -336,6 +336,7 @@ data ProcessInstStatus = ProcessInstNew
                        | ProcessInstRunning
                        | ProcessInstTerminated
                        | ProcessInstCompleted
+                       | ProcessInstError -- ^ undocumented
                        deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1
@@ -344,6 +345,7 @@ instance ParamValue ProcessInstStatus where
   toParamValue ProcessInstRunning    = "RUNNING"
   toParamValue ProcessInstTerminated = "TERMINATED"
   toParamValue ProcessInstCompleted  = "COMPLETED"
+  toParamValue ProcessInstError      = "ERROR"
 
 instance ToJSON ProcessInstStatus where
   toJSON = toJSON . toParamValue
