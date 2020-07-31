@@ -16,7 +16,6 @@ import qualified Crypto.Cipher.Types        as CN
 import qualified Crypto.MAC.HMAC            as CN
 import qualified Crypto.Data.Padding        as CN
 import qualified Data.ByteString.Base64     as B64
-import qualified Data.ByteString.Base16     as B16
 import qualified Data.ByteArray             as BA
 import qualified Data.Text                  as T
 import           Data.Time.Clock.POSIX
