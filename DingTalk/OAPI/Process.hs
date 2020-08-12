@@ -15,6 +15,7 @@ module DingTalk.OAPI.Process
   , processInstInfoFormLookup
   , oapiGetProcessInstanceInfo
   , oapiGetUserProcessInstanceToDo
+  , mkInternalUrlOfProcessInst
   ) where
 
 -- {{{1 imports
@@ -612,6 +613,23 @@ oapiGetUserProcessInstanceToDo user_id =
     )
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "count"))
 -- }}}1
+
+
+-- | XXX: UNDOCUMENTED
+-- see: https://www.cnblogs.com/Alex-Mercer/p/12768319.html
+-- 4.通过二维码或者网页查看流程（必须通过钉钉扫码）
+--
+-- 在钉钉的审批里面，我们打印的时候可以看到二维码，而里面的内容如下
+--
+-- https://m.tb.cn/E3.3MdqGv?corpid=企业ID&procInstId=审批实例id
+--
+-- 所以直接将链接转二维码或者直接发送给钉钉个人打开，就可以直接看到该审批实例的详细信息了
+mkInternalUrlOfProcessInst :: CorpId -> ProcessInstanceId -> Text
+mkInternalUrlOfProcessInst (CorpId cid) (ProcessInstanceId pid) = mconcat
+  [ "https://m.tb.cn/E3.3MdqGv?"
+  , "corpid=" <> cid
+  , "&procInstId=" <> pid
+  ]
 
 
 -- vim: set foldmethod=marker:
