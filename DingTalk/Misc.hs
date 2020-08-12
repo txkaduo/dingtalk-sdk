@@ -9,6 +9,8 @@ import qualified Control.Monad.Logger.CallStack as LCS
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import qualified Data.Text as T
+import           Data.Time
+import           Data.Time.Clock.POSIX
 import           Text.Show.Unicode (ushow)
 import qualified System.Clock as SC
 import           GHC.Stack (HasCallStack)
@@ -21,6 +23,21 @@ import DingTalk.OAPI.Contacts
 import Control.Concurrent (threadDelay)
 #endif
 -- }}}1
+
+
+dingTalkTimeZone :: TimeZone
+dingTalkTimeZone = hoursToTimeZone 8
+
+dayToTimestamp :: Day -> Timestamp
+dayToTimestamp = timestampFromPOSIXTime . utcTimeToPOSIXSeconds . localTimeToUTC tz . flip LocalTime midnight
+  where tz = dingTalkTimeZone
+
+timestampToZonedTime :: Timestamp -> ZonedTime
+timestampToZonedTime = utcToZonedTime tz . posixSecondsToUTCTime . timestampToPOSIXTime
+  where tz = dingTalkTimeZone
+
+timestampToDay :: Timestamp -> Day
+timestampToDay = localDay . zonedTimeToLocalTime . timestampToZonedTime
 
 
 nullUserIdToNothing :: UserId -> Maybe UserId
