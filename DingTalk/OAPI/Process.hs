@@ -11,7 +11,9 @@ module DingTalk.OAPI.Process
   , oapiGetProcessInstanceIdList, oapiSourceProcessInstId
   , ProcessInstStatus(..), ProcessOpType(..), ProcessOpResult(..)
   , ProcessOpRecord(..), ProcessBizAction(..), ProcessTaskStatus(..), ProcessTaskResult(..), FormComponentInput(..)
+  , FormCompDetailsRow(..), FormCompDetailsX(..)
   , ProcessTaskInfo(..), ProcessInstInfo(..)
+  , processInstInfoId
   , processInstInfoFormLookup
   , oapiGetProcessInstanceInfo
   , oapiGetUserProcessInstanceToDo
@@ -24,6 +26,7 @@ import           Control.Monad.Except hiding (mapM_, mapM)
 import           Data.Aeson           as A
 import           Data.Aeson.Text      as A
 import qualified Data.Aeson.Extra     as AE
+import qualified Data.Text            as T
 import           Data.Conduit
 import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Proxy
@@ -358,6 +361,7 @@ instance FromJSON ProcessInstStatus where
 
 data ProcessOpType = ProcessOpExecuteTaskNormal           -- ^ 正常执行任务
                    | ProcessOpExecuteTaskAgent            -- ^ 代理人执行任务
+                   | ProcessOpExecuteTaskAuto             -- ^ undocumented
                    | ProcessOpAppendTaskBefore            -- ^ 前加签任务
                    | ProcessOpAppendTaskAfter             -- ^ 后加签任务
                    | ProcessOpRedirectTask                -- ^ 转交任务
@@ -373,6 +377,7 @@ data ProcessOpType = ProcessOpExecuteTaskNormal           -- ^ 正常执行任�
 instance ParamValue ProcessOpType where
   toParamValue ProcessOpExecuteTaskNormal    = "EXECUTE_TASK_NORMAL"
   toParamValue ProcessOpExecuteTaskAgent     = "EXECUTE_TASK_AGENT"
+  toParamValue ProcessOpExecuteTaskAuto      = "EXECUTE_TASK_AUTO"
   toParamValue ProcessOpAppendTaskBefore     = "APPEND_TASK_BEFORE"
   toParamValue ProcessOpAppendTaskAfter      = "APPEND_TASK_AFTER"
   toParamValue ProcessOpRedirectTask         = "REDIRECT_TASK"
@@ -501,6 +506,7 @@ data ProcessTaskInfo = ProcessTaskInfo
   -- ^ 实测这有可能不出现．比如流程有两个环节时就会这样
   , processTaskInfoFinishTime :: Maybe LocalTime
   , processTaskInfoId         :: ProcessTaskId
+  , processTaskInfoUrl        :: Text -- undocumented
   }
 
 -- {{{1 instances
@@ -512,6 +518,7 @@ instance FromJSON ProcessTaskInfo where
                                 <*> o .:? "create_time"
                                 <*> o .:? "finish_time"
                                 <*> o .: "taskid"
+                                <*> o .: "url"
 -- }}}1
 
 
@@ -533,6 +540,50 @@ instance ToJSON FormComponentInput where
            , "value" .= formComponentInputValue
            , "ext_value" .= formComponentInputExtValue
            ]
+
+-- 明细类型的值实际返回的例子是这样的
+  {--
+   {
+        "value": "[{\"rowValue\":[{\"componentType\":\"NumberField\",\"label\":\"报销金额(元)\",\"value\":\"51\",\"key\":\"报销金额(元)\"},{\"componentType\":\"TextField\",\"label\":\"报销
+类别\",\"value\":\"活动经费\",\"key\":\"报销类别\"},{\"componentType\":\"TextareaField\",\"label\":\"费用明细\",\"value\":\"天河北音乐会，买8瓶王老吉跟三瓶小矿泉水。折后一共51元\",\"key\":\"费用明细\"},{\"componentType\":\"DDSelectField\",\"label\":\"所属校区\",\"extendValue\":{\"key\":\"option_JYTXA9UZ\"},\"value\":\"总部\",\"key\":\"DDSelectField-JLQOJD9L\"}]}]",
+        "name": "报销明细",
+        "ext_value": "{\"statValue\":[{\"id\":\"报销金额(元)\",\"label\":\"总报销金额(元)\",\"num\":\"51\",\"upper\":\"\"}],\"componentName\":\"TableField\"}"
+    }
+  -}
+-- 最外面仍然是 FormComponentInput 一样的结构
+-- value 包含了复合结构的字串序列化
+-- 我们分解其逻辑结构为下面若干个类型
+data FormCompDetailsRow = FormCompDetailsRow
+  { fcdRowLabel :: Text
+  -- ^ 从上面的例子看 key, label 有时相同，但 label 应该总是给人看到的那个字串
+  , fcdRowValue :: Text
+  , fcdRowType  :: Text -- NumberField, TextareaField, DDSelectField
+  }
+
+instance FromJSON FormCompDetailsRow where
+  parseJSON = withObject "FormCompDetailsRow" $ \ o -> do
+    FormCompDetailsRow <$> o .: "label"
+                       <*> o .: "value"
+                       <*> o .: "componentType"
+
+instance ToJSON FormCompDetailsRow where
+  toJSON (FormCompDetailsRow {..}) = object [ "label" .= fcdRowLabel
+                                            , "value" .= fcdRowValue
+                                            , "componentType" .= fcdRowType
+                                            ]
+
+
+data FormCompDetailsX = FormCompDetailsX
+  { fcdRows :: [ FormCompDetailsRow ]
+  }
+
+instance ToJSON FormCompDetailsX where
+  toJSON (FormCompDetailsX {..}) = object [ "rowValue" .= fcdRows ]
+
+instance FromJSON FormCompDetailsX where
+  parseJSON = withObject "FormCompDetailsX" $ \ o -> do
+    FormCompDetailsX <$> o .: "rowValue"
+
 
 data ProcessInstInfo = ProcessInstInfo
   { processInstInfoTitle                  :: Text
@@ -577,6 +628,20 @@ instance FromJSON ProcessInstInfo where
                                 <*> o .: "biz_action"
                                 <*> o .:? "attached_process_instance_ids" .!= []
 -- }}}1
+
+
+-- | XXX: ProcessInstInfo 居然没有 ProcessInstanceId 的字段
+-- 但task有个 url 字段，包含形如 aflow.dingtalk.com?procInsId=XXXX&taskId=XXXX&businessId=XXX 的字串
+-- 可以从中提取 ProcessInstanceId
+processInstInfoId :: ProcessInstInfo -> ProcessInstanceId
+processInstInfoId (ProcessInstInfo {..}) =
+  fromMaybe (error $ "cannot get procInstId from url: " <> unpack url) $ do
+    s1 <- T.stripPrefix "aflow.dingtalk.com?procInsId=" url
+    let (pid, others) = T.breakOn "&" s1
+    guard $ not $ null others
+    pure $ ProcessInstanceId pid
+  where task = fromMaybe (error "empty tasks in dingtalk process instance info") $ listToMaybe processInstInfoTasks
+        url = processTaskInfoUrl task
 
 
 processInstInfoFormLookup :: Text -> ProcessInstInfo -> Maybe FormComponentInput
