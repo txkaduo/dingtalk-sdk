@@ -120,7 +120,7 @@ instance RemoteCallThrottle MinimalIntervalThrottle where
           let time_diff_nano = SC.toNanoSecs $ SC.diffTimeSpec now last_time
           when (time_diff_nano < interval_us * 1000) $ do
             let delay_us = fromIntegral $ interval_us - time_diff_nano `div` 1000
-            -- $logWarnS logSourceName $ "Delaying call for " <> tshow delay_us <> " us."
+            --   $logWarnS logSourceName $ "Delaying call for " <> tshow delay_us <> " us."
             liftIO $ threadDelay delay_us
 
       f
