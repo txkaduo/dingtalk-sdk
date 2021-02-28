@@ -1,19 +1,21 @@
 module DingTalk.Yesod where
 
 -- {{{1 imports
-import           ClassyPrelude.Yesod hiding (requestHeaders)
+import           ClassyPrelude
+import           Yesod
 #if MIN_VERSION_base(4, 13, 0)
 -- import           Control.Monad (MonadFail(..))
 #else
 #endif
 
-import           Control.Monad.Catch (throwM)
+import           Control.Monad.Catch (MonadThrow(..))
 import           Control.Monad.Logger
 import           Control.Monad.Trans.Except
 import           Yesod.Core.Types (HandlerContents(HCError))
 import qualified Data.Aeson.Encode.Pretty as AP
 import           Data.List ((!!))
 import           Network.Wai         (requestHeaders)
+import           Network.HTTP.Types (hUserAgent)
 import           System.Random (randomRIO)
 
 import           DingTalk.Types
