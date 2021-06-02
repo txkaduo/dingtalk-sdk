@@ -85,16 +85,25 @@ oapiUrlBase = "https://oapi.dingtalk.com"
 
 
 oapiToPayload :: (MonadLogger m, MonadIO m, FromJSON a)
-              => Value
+              => String
+              -> Value
               -> m (Either OapiError a)
 -- {{{1
-oapiToPayload v = do
+oapiToPayload url_path v = do
   case fromJSON'Message v of
     Left err -> do
       $logErrorS logSourceName $ "Could not parse response body to payload: " <> err
       liftIO $ throwIO $ DatagramError (unpack err)
 
-    Right (OapiErrorOrPayload x) -> return x
+    Right (OapiErrorOrPayload err_or_res) -> do
+      case err_or_res of
+        Right _ -> do
+          $logDebugS logSourceName $ "API '" <> fromString url_path <> "' succeeded."
+
+        Left err -> do
+          $logErrorS logSourceName $ "API '" <> fromString url_path <> "' got error: " <> tshow err
+
+      return err_or_res
 -- }}}1
 
 
@@ -219,7 +228,7 @@ oapiConvertResp url_path r = do
       liftIO $ throwIO $ JSONError err
 
     Right resp_json -> do
-      oapiToPayload resp_json
+      oapiToPayload url_path resp_json
 -- }}}1
 
 
@@ -243,12 +252,10 @@ oapiGetCallWithAtkLike :: (HttpCallMonad env m, FromJSON a, ParamValue k)
                        => String
                        -> ParamKvList
                        -> ReaderT k m (Either OapiError a)
--- {{{1
 oapiGetCallWithAtkLike url_path kv_list = do
   atk <- ask
   let kv_list' = ("access_token" &= atk) : kv_list
   lift $ oapiGetCall url_path kv_list'
--- }}}1
 
 oapiGetCallWithAtk :: (HttpCallMonad env m, FromJSON a)
                    => String
@@ -279,12 +286,10 @@ oapiPostCallWithAtkLike :: (HttpCallMonad env m, FromJSON a, Postable b, ParamVa
                         -> ParamKvList
                         -> b
                         -> ReaderT k m (Either OapiError a)
--- {{{1
 oapiPostCallWithAtkLike url_path kv_list post_data = do
   atk <- ask
   let kv_list' = ("access_token" &= atk) : kv_list
   lift $ oapiPostCall url_path kv_list' post_data
--- }}}1
 
 
 oapiPostCallWithAtk :: (HttpCallMonad env m, FromJSON a, Postable b)
