@@ -15,6 +15,7 @@ module DingTalk.OAPI.Basic
 -- {{{1 imports
 import           ClassyPrelude
 import           Control.Lens         hiding ((.=))
+import           Control.Concurrent (threadDelay)
 import           Control.Monad.Logger
 import           Control.Monad.Except hiding (mapM_)
 import           Data.Aeson           as A
@@ -211,6 +212,25 @@ oapiGetAccessTokenScopes :: HttpCallMonad env m
 oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
 
+oapiAutoRetryCall :: (MonadLogger m, MonadIO m, FromJSON a)
+                  => String
+                  -> IO (Response LB.ByteString)
+                  -> m (Either OapiError a)
+oapiAutoRetryCall url_path io_call = loop 0
+  where
+    max_retry_cnt = 2 :: Int
+
+    loop cnt = do
+      err_or_res <- liftIO io_call >>= oapiConvertResp url_path
+      case err_or_res of
+        Left err | cnt < max_retry_cnt && oapiErrorCode err == oapiEcForbiddenTemporarily -> do
+          liftIO $ threadDelay (500 * 1000)
+          $logWarnS logSourceName $ "Retrying call #" <> tshow (cnt + 1) <> ": " <> fromString url_path
+          loop (cnt + 1)
+
+        _ -> pure err_or_res
+
+
 oapiConvertResp :: (FromJSON a, MonadIO m, MonadLogger m)
                 => String
                 -> Response LB.ByteString
@@ -236,16 +256,13 @@ oapiGetCall :: (HttpCallMonad env m, FromJSON a)
             => String
             -> ParamKvList
             -> m (Either OapiError a)
--- {{{1
 oapiGetCall url_path kv_list = do
   HttpApiRunEnv t sess <- ask
   throttleRemoteCall t $ do
-    liftIO (WS.getWith opts sess url)
-      >>= oapiConvertResp url_path
+    oapiAutoRetryCall url_path (WS.getWith opts sess url)
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
--- }}}1
 
 
 oapiGetCallWithAtkLike :: (HttpCallMonad env m, FromJSON a, ParamValue k)
@@ -269,16 +286,13 @@ oapiPostCall :: (HttpCallMonad env m, FromJSON a, Postable b)
              -> ParamKvList
              -> b
              -> m (Either OapiError a)
--- {{{1
 oapiPostCall url_path kv_list post_data = do
   HttpApiRunEnv t sess <- ask
   throttleRemoteCall t $ do
-    liftIO (WS.postWith opts sess url post_data)
-      >>= oapiConvertResp url_path
+    oapiAutoRetryCall url_path (WS.postWith opts sess url post_data)
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
--- }}}1
 
 
 oapiPostCallWithAtkLike :: (HttpCallMonad env m, FromJSON a, Postable b, ParamValue k)
