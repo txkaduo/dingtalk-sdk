@@ -100,7 +100,9 @@ instance Show AesEnv where
 parseEncodingAesKey :: EncodingAesKey -> Either String AesEnv
 -- {{{1
 parseEncodingAesKey k@(EncodingAesKey key_txt) = do
-  bs <- B64.decode $ encodeUtf8 (key_txt <> "=")
+  -- CAUTION: 钉钉页面提供的 AES Key 的 base64 编码不带 padding.
+  --          这里使用 decodeBase64 代表输入时要带 padding
+  bs <- left T.unpack $ B64.decodeBase64 $ encodeUtf8 (key_txt <> "=")
   unless (length bs == 32) $ do
     Left $ "Invalid AES Key length: " <> show (length bs)
 
@@ -131,7 +133,7 @@ encryptForProcessApi :: AesEnv
                      -> ByteString
 -- {{{1
 encryptForProcessApi (AesEnv cipher iv _) corp_or_suite random_pad msg = do
-  B64.encode $ CN.cbcEncrypt cipher iv padded_msg
+  B64.encodeBase64' $ CN.cbcEncrypt cipher iv padded_msg
   where msg_len = length msg
         msg_len_pad = toStrict $ Bin.runPut $ Bin.putWord32be $ fromIntegral msg_len
         key = encodeUtf8 $ either toParamValue toParamValue corp_or_suite
@@ -147,7 +149,7 @@ decryptForProcessApi :: AesEnv
 -- ^ result is (message payload, CorpId/SuiteKey)
 -- {{{1
 decryptForProcessApi (AesEnv cipher iv _) msg = do
-  bs_to_decrypt <- B64.decode msg
+  bs_to_decrypt <- left T.unpack $ B64.decodeBase64 msg
   let msg_decrypted = CN.cbcDecrypt cipher iv bs_to_decrypt
   msg_unpadded <- maybe (Left "Failed to unpad") return $ CN.unpad (CN.PKCS7 block_size) msg_decrypted
   when (length msg_unpadded <= 16 + 4) $ do
@@ -187,7 +189,7 @@ signForProcessApi (CallbackToken token) timestamp (Nonce nonce) msg =
 
 snsCallSignaturePure :: SnsAppSecret -> Timestamp -> Text
 snsCallSignaturePure secret (Timestamp ts) =
-  decodeUtf8 (B64.encode (BA.convert h))
+  B64.encodeBase64 (BA.convert h)
   where h = CN.hmac (encodeUtf8 $ unAppSecret secret) (encodeUtf8 $ tshow ts) :: CN.HMAC CN.SHA256
 
 

@@ -172,12 +172,10 @@ parseJsonParamValueEnumBounded name = A.withText name $ \ t -> do
 randomBase64String :: MonadIO m
                    => Int
                    -> m String
--- {{{1
 randomBase64String salt_len = liftIO $ do
-  liftM (C8.unpack . take salt_len . B64L.encode . pack) $
+  liftM (C8.unpack . take salt_len . B64L.encodeBase64' . pack) $
       replicateM gen_len randomIO
   where gen_len = salt_len  -- long enough
--- }}}1
 
 
 randomAlphaNumString :: MonadIO m

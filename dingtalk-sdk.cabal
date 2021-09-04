@@ -62,8 +62,8 @@ library
                      , lens
                      , lens-aeson
                      , bytestring
-                     , base64-bytestring
-                     , base16-bytestring
+                     , base64
+                     , base16
                      , memory
                      , conduit
                      , random
