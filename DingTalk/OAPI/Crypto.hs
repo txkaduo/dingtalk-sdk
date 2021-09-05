@@ -102,7 +102,11 @@ parseEncodingAesKey :: EncodingAesKey -> Either String AesEnv
 parseEncodingAesKey k@(EncodingAesKey key_txt) = do
   -- CAUTION: 钉钉页面提供的 AES Key 的 base64 编码不带 padding.
   --          这里使用 decodeBase64 代表输入时要带 padding
-  bs <- left T.unpack $ B64.decodeBase64 $ encodeUtf8 (key_txt <> "=")
+  -- CAUTION2: 即使自动加上 = ，得到的字串依然不一定是完全符合标准的 base64 encoding
+  --           不符合 RFC-4648 Canonical Encoding 一节的要求
+  --           这里使用 decodeBase64 代表输入时要带 padding
+  --           为减少人为错误，这里使用宽容版本的 decode
+  let bs = B64.decodeBase64Lenient $ encodeUtf8 (key_txt <> "=")
   unless (length bs == 32) $ do
     Left $ "Invalid AES Key length: " <> show (length bs)
 
