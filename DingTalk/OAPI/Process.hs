@@ -15,7 +15,7 @@ module DingTalk.OAPI.Process
   , ProcessTaskInfo(..), ProcessInstInfo(..)
   , processInstInfoId
   , processInstInfoFormLookup
-  , oapiGetProcessInstanceInfo
+  , oapiGetProcessInstanceInfo, oapiGetProcessInstanceInfo'
   , oapiGetUserProcessInstanceToDo
   , mkInternalUrlOfProcessInst
   ) where
@@ -429,6 +429,16 @@ instance FromJSON ProcessOpRecord where
                                 <*> o .: "operation_result"
                                 <*> (o .:? "remark" >>= nullTextAsNothing)
 
+-- not needed for DingTalk API, but useful for serializing for cache
+instance ToJSON ProcessOpRecord where
+  toJSON (ProcessOpRecord {..}) = object $ catMaybes $
+    [ pure $ "userid" .= processOpUserId
+    , pure $ "date" .= formatTime defaultTimeLocale "%F %T" processOpTime
+    , pure $ "operation_type" .= processOpType
+    , pure $ "operation_result" .= processOpResult
+    , ("remark" .=) <$> processOpRemark
+    ]
+
 
 -- | 审批实例业务动作
 data ProcessBizAction = ProcessBizModify  -- ^ MODIFY表示该审批实例是基于原来的实例修改而来
@@ -519,6 +529,18 @@ instance FromJSON ProcessTaskInfo where
                                 <*> o .:? "finish_time"
                                 <*> o .: "taskid"
                                 <*> o .: "url"
+
+-- not needed for DingTalk API, but useful for serializing for cache
+instance ToJSON ProcessTaskInfo where
+  toJSON (ProcessTaskInfo {..}) = object $ catMaybes
+    [ pure $ "userid" .= processTaskInfoUserId
+    , pure $ "task_status" .= processTaskInfoStatus
+    , pure $ "task_result" .= processTaskInfoResult
+    , ( "create_time" .= ) . formatTime defaultTimeLocale "%F %T" <$> processTaskInfoCreateTime
+    , ( "finish_time" .= ) . formatTime defaultTimeLocale "%F %T" <$> processTaskInfoFinishTime
+    , pure $ "taskid" .= processTaskInfoId
+    , pure $ "url" .= processTaskInfoUrl
+    ]
 -- }}}1
 
 
@@ -627,6 +649,32 @@ instance FromJSON ProcessInstInfo where
                                 <*> o .: "originator_dept_name"
                                 <*> o .: "biz_action"
                                 <*> o .:? "attached_process_instance_ids" .!= []
+
+-- not needed for DingTalk API, but useful for serializing for cache
+instance ToJSON ProcessInstInfo where
+  toJSON (ProcessInstInfo {..}) = object $ catMaybes $
+    [ pure $ "title" .= processInstInfoTitle
+    , pure $ "create_time" .= formatTime defaultTimeLocale "%F %T" processInstInfoCreateTime
+    , ("finish_time" .=) . formatTime defaultTimeLocale "%F %T" <$> processInstInfoFinishTime
+    , pure $ "originator_user_id" .= processInstInfoOriginatorUserId
+    , pure $ "originator_dept_id" .= processInstInfoOriginatorDeptId
+    , pure $ "status" .= processInstInfoStatus
+    , guard (not $ null processInstInfoApproverUserIds)
+        >> pure ("approver_userids" .= processInstInfoApproverUserIds)
+    , guard (not $ null processInstInfoCcUserIds)
+        >> pure ("cc_userids" .= processInstInfoCcUserIds)
+    , pure $ "form_component_values" .= processInstInfoFormComponentKeyValues
+    , ("result" .=) <$> processInstInfoResult
+    , pure $ "business_id" .= processInstInfoBizId
+    , guard (not $ null processInstInfoOpRecords)
+        >> pure ("operation_records" .= processInstInfoOpRecords)
+    , guard (not $ null processInstInfoTasks)
+        >> pure ("tasks" .= processInstInfoTasks)
+    , pure $ "originator_dept_name" .= processInstInfoOriginatorDeptName
+    , pure $ "biz_action" .= processInstInfoBizAction
+    , guard (not $ null processInstInfoAttachedProcessInstIds)
+        >> pure ("attached_process_instance_ids" .= processInstInfoAttachedProcessInstIds)
+    ]
 -- }}}1
 
 
@@ -653,15 +701,21 @@ processInstInfoFormLookup n =
 oapiGetProcessInstanceInfo :: HttpCallMonad env m
                            => ProcessInstanceId
                            -> OapiRpcWithAtk m ProcessInstInfo
--- {{{1
-oapiGetProcessInstanceInfo procss_id =
+oapiGetProcessInstanceInfo process_id =
   oapiPostCallWithAtk "/topapi/processinstance/get"
     []
     ( object
-        [ "process_instance_id" .= procss_id
+        [ "process_instance_id" .= process_id
         ]
     )
--- }}}1
+
+
+-- | 为方便使用，把 ProcessInstanceId 打包到结果里
+-- 尽量避免使用 processInstInfoId 这个 hacking
+oapiGetProcessInstanceInfo' :: HttpCallMonad env m
+                            => ProcessInstanceId
+                            -> OapiRpcWithAtk m (ProcessInstanceId, ProcessInstInfo)
+oapiGetProcessInstanceInfo' process_id = fmap (process_id, ) <$> oapiGetProcessInstanceInfo process_id
 
 
 -- | 获取用户待审批数量
