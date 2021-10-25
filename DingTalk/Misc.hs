@@ -18,6 +18,7 @@ import           GHC.Stack (HasCallStack)
 import DingTalk.Types
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Contacts
+import DingTalk.OAPI.Process
 
 #if MIN_VERSION_classy_prelude(1, 5, 0)
 import Control.Concurrent (threadDelay)
@@ -136,6 +137,11 @@ newMinimalIntervalThrottle = liftIO $ MinimalIntervalThrottle 0 <$> newMVar Noth
 overrideMinimalIntervalThrottle :: Float -> MinimalIntervalThrottle -> MinimalIntervalThrottle
 overrideMinimalIntervalThrottle new_interval (MinimalIntervalThrottle _ mvar) =
   MinimalIntervalThrottle new_interval mvar
+
+
+lookupProcessInstFormComponentInputValue :: ProcessInstInfo -> Text -> Maybe Text
+lookupProcessInstFormComponentInputValue pii name =
+  fmap formComponentInputValue $ find ((== name) . formComponentInputName) (processInstInfoFormComponentKeyValues pii)
 
 
 -- vim: set foldmethod=marker:
