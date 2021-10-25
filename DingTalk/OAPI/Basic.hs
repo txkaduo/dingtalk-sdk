@@ -55,7 +55,7 @@ instance FromJSON OapiError where
 
 type OapiRpcWithAtk m a = ReaderT AccessToken m (Either OapiError a)
 
-type OapiRpcWithAtkExcept m a = ExceptT OapiError (ReaderT AccessToken m) a
+type OapiRpcWithAtkExcept m = ExceptT OapiError (ReaderT AccessToken m)
 
 type OapiRpcWithAtkSource m a =
 #if MIN_VERSION_conduit(1, 3, 0)
