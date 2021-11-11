@@ -26,7 +26,6 @@ import qualified Data.Aeson.Extra     as AE
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
 import           Data.List.NonEmpty (NonEmpty)
-import qualified Data.List.NonEmpty as LNE
 import           Data.Tree
 import           Data.Proxy
 import           Text.Show.Unicode (ushow)
@@ -124,24 +123,12 @@ oapiGetDeptInfoTree dept_id = runExceptT $ runMaybeT $ do
 
 
 -- | 钉钉不提供能根据dept id直接取得 DeptInfo 的接口，
--- 这里用 oapiGetDeptParentDeptIds/oapiGetDeptDetails 间接实现
--- XXX: 若此部门的兄弟部门非常多，就有一点浪费
+-- 这里用 oapiGetDeptDetails 间接实现
 oapiGetDeptSimpleInfo :: HttpCallMonad env m
                       => DeptId
                       -> OapiRpcWithAtk m (Maybe DeptInfo)
--- {{{1
 oapiGetDeptSimpleInfo dept_id = runExceptT $ do
-  if dept_id == rootDeptId
-     then fmap (fmap  deptDetailsToInfo) $ ExceptT (oapiGetDeptDetails dept_id)
-     else do
-          parent_ids <- ExceptT $ oapiGetDeptParentDeptIds dept_id
-          fmap join $
-            forM (listToMaybe $ LNE.tail parent_ids) $ \ real_parent_id -> do
-              ExceptT (oapiGetSubDeptList False real_parent_id)
-                >>= logUnexpectedEmptyResult
-                      ("oapiGetSubDeptList should not return Nothing for dept_id: " <> toParamValue real_parent_id)
-                >>= return . find ((== dept_id) . deptInfoId) . fromMaybe []
--- }}}1
+   fmap (fmap  deptDetailsToInfo) $ ExceptT (oapiGetDeptDetails dept_id)
 
 
 data DeptDetails = DeptDetails
