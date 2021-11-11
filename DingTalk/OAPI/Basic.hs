@@ -18,7 +18,7 @@ import           Control.Lens         hiding ((.=))
 import           Control.Concurrent (threadDelay)
 import           Control.Monad.Logger
 import           Control.Monad.Except hiding (mapM_)
-import           Data.Aeson           as A
+import           Data.Aeson           as A hiding (Options)
 import qualified Data.Aeson.Extra     as AE
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
@@ -87,10 +87,11 @@ oapiUrlBase = "https://oapi.dingtalk.com"
 
 oapiToPayload :: (MonadLogger m, MonadIO m, FromJSON a)
               => String
+              -> Options
               -> Value
               -> m (Either OapiError a)
 -- {{{1
-oapiToPayload url_path v = do
+oapiToPayload url_path opts v = do
   case fromJSON'Message v of
     Left err -> do
       $logErrorS logSourceName $ "Could not parse response body to payload: " <> err
@@ -100,9 +101,12 @@ oapiToPayload url_path v = do
       case err_or_res of
         Right _ -> do
           $logDebugS logSourceName $ "API '" <> fromString url_path <> "' succeeded."
+              <> " Options=" <> tshow opts
 
         Left err -> do
-          $logErrorS logSourceName $ "API '" <> fromString url_path <> "' got error: " <> tshow err
+          $logErrorS logSourceName $
+            "API '" <> fromString url_path <> "' got error: " <> tshow err
+              <> ". Options=" <> tshow opts
 
       return err_or_res
 -- }}}1
@@ -214,14 +218,15 @@ oapiGetAccessTokenScopes = oapiGetCallWithAtk "/auth/scopes" []
 
 oapiAutoRetryCall :: (MonadLogger m, MonadIO m, FromJSON a)
                   => String
+                  -> Options
                   -> IO (Response LB.ByteString)
                   -> m (Either OapiError a)
-oapiAutoRetryCall url_path io_call = loop 0
+oapiAutoRetryCall url_path opts io_call = loop 0
   where
     max_retry_cnt = 2 :: Int
 
     loop cnt = do
-      err_or_res <- liftIO io_call >>= oapiConvertResp url_path
+      err_or_res <- liftIO io_call >>= oapiConvertResp url_path opts
       case err_or_res of
         Left err | cnt < max_retry_cnt && oapiErrorCode err == oapiEcForbiddenTemporarily -> do
           liftIO $ threadDelay (500 * 1000)
@@ -233,10 +238,11 @@ oapiAutoRetryCall url_path io_call = loop 0
 
 oapiConvertResp :: (FromJSON a, MonadIO m, MonadLogger m)
                 => String
+                -> Options
                 -> Response LB.ByteString
                 -> m (Either OapiError a)
 -- {{{1
-oapiConvertResp url_path r = do
+oapiConvertResp url_path opts r = do
   let response_txt = toStrict $ decodeUtf8 (r ^. responseBody)
   $logDebugS logSourceName $ "api '" <> fromString url_path <> "' response:\n" <> response_txt
 
@@ -248,7 +254,7 @@ oapiConvertResp url_path r = do
       liftIO $ throwIO $ JSONError err
 
     Right resp_json -> do
-      oapiToPayload url_path resp_json
+      oapiToPayload url_path opts resp_json
 -- }}}1
 
 
@@ -259,7 +265,7 @@ oapiGetCall :: (HttpCallMonad env m, FromJSON a)
 oapiGetCall url_path kv_list = do
   HttpApiRunEnv t sess <- ask
   throttleRemoteCall t $ do
-    oapiAutoRetryCall url_path (WS.getWith opts sess url)
+    oapiAutoRetryCall url_path opts (WS.getWith opts sess url)
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
@@ -289,7 +295,7 @@ oapiPostCall :: (HttpCallMonad env m, FromJSON a, Postable b)
 oapiPostCall url_path kv_list post_data = do
   HttpApiRunEnv t sess <- ask
   throttleRemoteCall t $ do
-    oapiAutoRetryCall url_path (WS.postWith opts sess url post_data)
+    oapiAutoRetryCall url_path opts (WS.postWith opts sess url post_data)
   where
     url = oapiUrlBase <> url_path
     opts = defaults & applyParamKvListInQs kv_list
