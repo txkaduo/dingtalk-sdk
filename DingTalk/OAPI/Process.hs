@@ -291,7 +291,7 @@ instance FromJSON ProcessInstListResponse where
 
 
 maxOapiGetProcessInstBatchSize :: Int
-maxOapiGetProcessInstBatchSize = 10
+maxOapiGetProcessInstBatchSize = 20
 
 
 -- | 批量获取审批实例id
