@@ -630,13 +630,14 @@ data ProcessInstInfo = ProcessInstInfo
   }
 
 -- {{{1 instances
+-- XXX: process_instance 这一层其实是钉钉新版本接口统一的行为，在这里暂时理解为 ProcessInstInfo 一部分，以后要去掉
 instance FromJSON ProcessInstInfo where
   parseJSON = withObject "ProcessInstInfo" $ \ o0 -> do
                 o <- o0 .: "process_instance"
                 ProcessInstInfo <$> o .: "title"
                                 <*> o .: "create_time"
                                 <*> o .:? "finish_time"
-                                <*> o .: "originator_userid"
+                                <*> o .: "originator_userid"  -- not originator_user_id
                                 <*> o .: "originator_dept_id"
                                 <*> o .: "status"
                                 <*> ((o .:? "approver_userids" >>= mapM (aesonParseSepTextOrList "," (return . UserId))) .!= [])
@@ -656,30 +657,32 @@ instance FromJSON ProcessInstInfo where
 
 -- not needed for DingTalk API, but useful for serializing for cache
 instance ToJSON ProcessInstInfo where
-  toJSON (ProcessInstInfo {..}) = object $ catMaybes $
-    [ pure $ "title" .= processInstInfoTitle
-    , pure $ "create_time" .= formatTime defaultTimeLocale "%F %T" processInstInfoCreateTime
-    , ("finish_time" .=) . formatTime defaultTimeLocale "%F %T" <$> processInstInfoFinishTime
-    , pure $ "originator_user_id" .= processInstInfoOriginatorUserId
-    , pure $ "originator_dept_id" .= processInstInfoOriginatorDeptId
-    , pure $ "status" .= processInstInfoStatus
-    , guard (not $ null processInstInfoApproverUserIds)
-        >> pure ("approver_userids" .= processInstInfoApproverUserIds)
-    , guard (not $ null processInstInfoCcUserIds)
-        >> pure ("cc_userids" .= processInstInfoCcUserIds)
-    , pure $ "form_component_values" .= processInstInfoFormComponentKeyValues
-    , ("result" .=) <$> processInstInfoResult
-    , pure $ "business_id" .= processInstInfoBizId
-    , guard (not $ null processInstInfoOpRecords)
-        >> pure ("operation_records" .= processInstInfoOpRecords)
-    , guard (not $ null processInstInfoTasks)
-        >> pure ("tasks" .= processInstInfoTasks)
-    , pure $ "originator_dept_name" .= processInstInfoOriginatorDeptName
-    , pure $ "biz_action" .= processInstInfoBizAction
-    , guard (not $ null processInstInfoAttachedProcessInstIds)
-        >> pure ("attached_process_instance_ids" .= processInstInfoAttachedProcessInstIds)
-    , ("main_process_instance_id" .=) <$> processInstInfoMainProcessInstId
-    ]
+  toJSON (ProcessInstInfo {..}) = object [ "process_instance" .= o ]
+    where
+      o = object $ catMaybes $
+        [ pure $ "title" .= processInstInfoTitle
+        , pure $ "create_time" .= formatTime defaultTimeLocale "%F %T" processInstInfoCreateTime
+        , ("finish_time" .=) . formatTime defaultTimeLocale "%F %T" <$> processInstInfoFinishTime
+        , pure $ "originator_userid" .= processInstInfoOriginatorUserId
+        , pure $ "originator_dept_id" .= processInstInfoOriginatorDeptId
+        , pure $ "status" .= processInstInfoStatus
+        , guard (not $ null processInstInfoApproverUserIds)
+            >> pure ("approver_userids" .= processInstInfoApproverUserIds)
+        , guard (not $ null processInstInfoCcUserIds)
+            >> pure ("cc_userids" .= processInstInfoCcUserIds)
+        , pure $ "form_component_values" .= processInstInfoFormComponentKeyValues
+        , ("result" .=) <$> processInstInfoResult
+        , pure $ "business_id" .= processInstInfoBizId
+        , guard (not $ null processInstInfoOpRecords)
+            >> pure ("operation_records" .= processInstInfoOpRecords)
+        , guard (not $ null processInstInfoTasks)
+            >> pure ("tasks" .= processInstInfoTasks)
+        , pure $ "originator_dept_name" .= processInstInfoOriginatorDeptName
+        , pure $ "biz_action" .= processInstInfoBizAction
+        , guard (not $ null processInstInfoAttachedProcessInstIds)
+            >> pure ("attached_process_instance_ids" .= processInstInfoAttachedProcessInstIds)
+        , ("main_process_instance_id" .=) <$> processInstInfoMainProcessInstId
+        ]
 -- }}}1
 
 
