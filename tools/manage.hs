@@ -424,47 +424,8 @@ start opts api_env = flip runReaderT api_env $ do
         Left err -> do
           $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
 
-        Right (ProcessInstInfo {..}) -> do
-          putStrLn $ "Process Instance Info"
-          putStrLn $ "====================="
-          putStrLn $ "Title: " <> processInstInfoTitle
-          putStrLn $ "Status: " <> utshow processInstInfoStatus
-          putStrLn $ "Result: " <> utshow processInstInfoResult
-          putStrLn $ "Create Time: " <> utshow processInstInfoCreateTime
-          putStrLn $ "Finish Time: " <> utshow processInstInfoFinishTime
-          putStrLn $ "Form Values: " <> toStrict (decodeUtf8 $ AP.encodePretty processInstInfoFormComponentKeyValues)
-
-          putStr "Operation Records:"
-          if null processInstInfoOpRecords
-             then putStrLn " (empty)"
-             else do
-                  putStrLn ""
-                  putStrLn "------------------"
-
-                  forM_ processInstInfoOpRecords $ \ (ProcessOpRecord {..}) -> do
-                    putStrLn $ "Time: " <> utshow processOpTime
-                    putStrLn $ "User Id: " <> toParamValue processOpUserId
-                    putStrLn $ "Type: " <> toParamValue processOpType
-                    putStrLn $ "Result: " <> toParamValue processOpResult
-                    putStrLn $ "Remarks: " <> fromMaybe "" processOpRemark
-                    putStrLn ""
-
-
-          putStr "Tasks:"
-          if null processInstInfoTasks
-             then putStrLn " (empty)"
-             else do
-                  putStrLn ""
-                  putStrLn "------"
-
-                  forM_ processInstInfoTasks $ \ (ProcessTaskInfo {..}) -> do
-                    putStrLn $ "Id: " <> toParamValue processTaskInfoId
-                    putStrLn $ "Create Time: " <> utshow processTaskInfoCreateTime
-                    putStrLn $ "Finish Time: " <> utshow processTaskInfoFinishTime
-                    putStrLn $ "User Id: " <> toParamValue processTaskInfoUserId
-                    putStrLn $ "Status: " <> toParamValue processTaskInfoStatus
-                    putStrLn $ "Result: " <> toParamValue processTaskInfoResult
-                    putStrLn ""
+        Right pii -> do
+          putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty pii
 
 
     ShowUserProcessToDo user_id -> do

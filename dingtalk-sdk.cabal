@@ -80,6 +80,7 @@ library
                      , lifted-base
                      , safe-money
                      , nonempty-containers
+                     , http-api-data
                      , yesod
 
 

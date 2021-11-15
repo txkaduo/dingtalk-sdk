@@ -626,6 +626,7 @@ data ProcessInstInfo = ProcessInstInfo
   , processInstInfoOriginatorDeptName     :: Text
   , processInstInfoBizAction              :: ProcessBizAction
   , processInstInfoAttachedProcessInstIds :: [ProcessInstanceId]
+  , processInstInfoMainProcessInstId      :: Maybe ProcessInstanceId
   }
 
 -- {{{1 instances
@@ -651,6 +652,7 @@ instance FromJSON ProcessInstInfo where
                                 <*> o .: "originator_dept_name"
                                 <*> o .: "biz_action"
                                 <*> o .:? "attached_process_instance_ids" .!= []
+                                <*> o .:? "main_process_instance_id"
 
 -- not needed for DingTalk API, but useful for serializing for cache
 instance ToJSON ProcessInstInfo where
@@ -676,6 +678,7 @@ instance ToJSON ProcessInstInfo where
     , pure $ "biz_action" .= processInstInfoBizAction
     , guard (not $ null processInstInfoAttachedProcessInstIds)
         >> pure ("attached_process_instance_ids" .= processInstInfoAttachedProcessInstIds)
+    , ("main_process_instance_id" .=) <$> processInstInfoMainProcessInstId
     ]
 -- }}}1
 
