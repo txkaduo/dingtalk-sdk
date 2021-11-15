@@ -16,7 +16,8 @@ import           Data.Time.Clock.POSIX
 import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 import qualified Network.Wreq.Session  as WS
 import           Text.Blaze.Html       (ToMarkup (..))
-import           Text.Shakespeare.I18N (ToMessage (..))
+import           Web.HttpApiData (ToHttpApiData (..), FromHttpApiData (..))
+import           Yesod.Core
 
 import DingTalk.Helpers
 
@@ -27,10 +28,12 @@ import Control.Monad.Trans.Control
 
 
 #define NEWTYPE_TEXT_DERIVING \
-  deriving (Show, Eq, Ord, Typeable, ToMessage, ToMarkup \
+  deriving (Show, Read, Eq, Ord, Typeable, ToMessage, ToMarkup \
            , PersistField, PersistFieldSql \
            , ToJSON, FromJSON \
            , ParamValue \
+           , PathPiece \
+           , ToHttpApiData, FromHttpApiData \
            )
 
 #define NEWTYPE_DEF(t1, t2) newtype t1 = t1 { un ## t1 :: t2 }
