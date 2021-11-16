@@ -18,10 +18,12 @@ module DingTalk.OAPI.Process
   , oapiGetProcessInstanceInfo, oapiGetProcessInstanceInfo'
   , oapiGetUserProcessInstanceToDo
   , mkInternalUrlOfProcessInst
+  , oapiProcessInstanceAddComment
   ) where
 
 -- {{{1 imports
 import           ClassyPrelude
+-- import           Control.Monad.Logger
 import           Control.Monad.Except hiding (mapM_, mapM)
 import           Data.Aeson           as A
 import           Data.Aeson.Text      as A
@@ -758,5 +760,31 @@ mkInternalUrlOfProcessInst (CorpId cid) (ProcessInstanceId pid) = mconcat
   , "&procInstId=" <> pid
   ]
 
+
+-- | 添加审批评论
+-- TODO: 支持文件附件
+oapiProcessInstanceAddComment :: HttpCallMonad env m
+                              => ProcessInstanceId
+                              -> UserId
+                              -> Text
+                              -> [Text] -- ^ Photos URLs
+                              -> OapiRpcWithAtk m Bool
+oapiProcessInstanceAddComment process_id user_id text photo_urls = do
+  oapiPostCallWithAtk "/topapi/process/instance/comment/add"
+    []
+    ( object [ "request" .= request_jv ] )
+    >>= return . fmap (AE.getSingObject (Proxy :: Proxy "success"))
+    where
+      file_jv = do
+        guard $ not (null photo_urls)
+        pure $ object [ "photos" .= photo_urls
+                      ]
+
+      request_jv = object $ catMaybes
+          [ pure $ "process_instance_id" .= process_id
+          , pure $ "comment_userid" .= user_id
+          , pure $ "text" .= text
+          , ("file" .=) <$> file_jv
+          ]
 
 -- vim: set foldmethod=marker:

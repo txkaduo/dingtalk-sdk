@@ -83,6 +83,7 @@ data ManageCmd = Scopes
                | SearchProcess (Maybe Text)
                | ListProcessInstId ProcessCode Int (Maybe UserId)
                | ShowProcessInst ProcessInstanceId
+               | ProcessInstAddComment ProcessInstanceId UserId Text [Text]
                | ShowUserProcessToDo UserId
                | StartProcess ProcessCode UserId (Maybe DeptId) (NonEmpty UserId) [(Text, Text)]
                | DeleteCallback
@@ -177,6 +178,16 @@ manageCmdParser = subparser $
   <> command "show-process-inst"
     (info (helper <*> ( ShowProcessInst
                           <$> (ProcessInstanceId . fromString <$> argument str (metavar "PROCESS_INSTANCE_ID"))
+                      )
+          )
+          (progDesc "显示审批实例信息")
+    )
+  <> command "process-inst-add-comment"
+    (info (helper <*> ( ProcessInstAddComment
+                          <$> (ProcessInstanceId . fromString <$> argument str (metavar "PROCESS_INSTANCE_ID"))
+                          <*> (UserId . fromString <$> argument str (metavar "USER_ID"))
+                          <*> argument str (metavar "TEXT")
+                          <*> many (argument str (metavar "PHOTO_URL"))
                       )
           )
           (progDesc "显示审批实例信息")
@@ -422,11 +433,21 @@ start opts api_env = flip runReaderT api_env $ do
 
       case err_or_res of
         Left err -> do
-          $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
+          $logError $ "oapiGetProcessInstanceInfo failed: " <> utshow err
 
         Right pii -> do
           putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty pii
 
+
+    ProcessInstAddComment proc_inst_id user_id text photo_urls -> do
+      err_or_res <- flip runReaderT atk $ oapiProcessInstanceAddComment proc_inst_id user_id text photo_urls
+
+      case err_or_res of
+        Left err -> do
+          $logError $ "oapiProcessInstanceAddComment failed: " <> utshow err
+
+        Right res -> do
+          putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty res
 
     ShowUserProcessToDo user_id -> do
       err_or_res <- flip runReaderT atk $ oapiGetUserProcessInstanceToDo user_id
