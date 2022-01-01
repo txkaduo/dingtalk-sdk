@@ -549,20 +549,31 @@ instance ToJSON ProcessTaskInfo where
 
 
 data FormComponentInput = FormComponentInput
-  { formComponentInputName :: Text
-  , formComponentInputValue :: Text
+  { formComponentInputName     :: Text
+  , formComponentInputType     :: Text
+  , formComponentInputValue    :: Text
   , formComponentInputExtValue :: Maybe Value
   }
 
 instance FromJSON FormComponentInput where
   parseJSON = withObject "FormComponentInput" $ \ o -> do
-                FormComponentInput <$> o .: "name"
-                                   <*> o .: "value"
-                                   <*> o .:? "ext_value"
+                m_name <- o .:? "name"
+                typ <- o .: "component_type"
+                case m_name of
+                  Nothing -> do
+                    if typ == "TextNote"
+                       then pure (FormComponentInput "" typ "" Nothing)
+                       else fail $ unpack $ "missing 'name' field, while type is '" <> typ <> "'"
+
+                  Just name ->
+                    FormComponentInput name typ
+                      <$> o .: "value"
+                       <*> o .:? "ext_value"
 
 instance ToJSON FormComponentInput where
   toJSON (FormComponentInput {..}) =
     object [ "name" .= formComponentInputName
+           , "component_type" .= formComponentInputType
            , "value" .= formComponentInputValue
            , "ext_value" .= formComponentInputExtValue
            ]
