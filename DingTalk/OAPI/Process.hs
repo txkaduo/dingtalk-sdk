@@ -34,6 +34,7 @@ import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Proxy
 import           Data.Time
 import qualified Data.Set.NonEmpty as NES
+import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 import           Money
 
 import DingTalk.OAPI.Basic
@@ -358,6 +359,18 @@ instance ToJSON ProcessInstStatus where
 
 instance FromJSON ProcessInstStatus where
   parseJSON = parseJsonParamValueEnumBounded "ProcessInstStatus"
+
+instance PersistField ProcessInstStatus where
+  toPersistValue = toPersistValue . toParamValue
+
+  fromPersistValue pv = do
+    t <- fromPersistValue pv
+    case parseEnumParamValueText t of
+      Nothing -> Left $ "Invalid ProcessInstStatus: " <> t
+      Just s -> pure s
+
+instance PersistFieldSql ProcessInstStatus where
+  sqlType _ = sqlType (Proxy :: Proxy Text)
 -- }}}1
 
 
