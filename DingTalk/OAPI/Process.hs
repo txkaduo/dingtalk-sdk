@@ -563,7 +563,8 @@ instance ToJSON ProcessTaskInfo where
 
 data FormComponentInput = FormComponentInput
   { formComponentInputName     :: Text
-  , formComponentInputType     :: Text
+  , formComponentInputType     :: Maybe Text
+  -- ^ 似乎有了 ext_value 就没 component_type
   , formComponentInputValue    :: Text
   , formComponentInputExtValue :: Maybe Value
   }
@@ -571,12 +572,12 @@ data FormComponentInput = FormComponentInput
 instance FromJSON FormComponentInput where
   parseJSON = withObject "FormComponentInput" $ \ o -> do
                 m_name <- o .:? "name"
-                typ <- o .: "component_type"
+                typ <- o .:? "component_type"
                 case m_name of
                   Nothing -> do
-                    if typ == "TextNote"
+                    if typ == Just "TextNote"
                        then pure (FormComponentInput "" typ "" Nothing)
-                       else fail $ unpack $ "missing 'name' field, while type is '" <> typ <> "'"
+                       else fail $ unpack $ "missing 'name' field, while type is '" <> tshow typ <> "'"
 
                   Just name ->
                     FormComponentInput name typ
@@ -585,11 +586,12 @@ instance FromJSON FormComponentInput where
 
 instance ToJSON FormComponentInput where
   toJSON (FormComponentInput {..}) =
-    object [ "name" .= formComponentInputName
-           , "component_type" .= formComponentInputType
-           , "value" .= formComponentInputValue
-           , "ext_value" .= formComponentInputExtValue
-           ]
+    object $ catMaybes
+          [ pure $ "name" .= formComponentInputName
+          , ("component_type" .=) <$> formComponentInputType
+          , pure $ "value" .= formComponentInputValue
+          , ("ext_value" .=) <$> formComponentInputExtValue
+          ]
 
 -- 明细类型的值实际返回的例子是这样的
   {--
