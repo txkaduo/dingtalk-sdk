@@ -1,7 +1,5 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
-{-# OPTIONS_GHC -pgmP cc -optP -E -optP -undef -optP -std=c89 #-}
--- 上面这个命令行是为了使用 ## 这样的CPP操作符. ghc ticket 12516
 module DingTalk.Types
   ( module DingTalk.Types
   , ParamValue(..), SomeParamValue(..)
@@ -36,32 +34,32 @@ import Control.Monad.Trans.Control
            , ToHttpApiData, FromHttpApiData \
            )
 
-#define NEWTYPE_DEF(t1, t2) newtype t1 = t1 { un ## t1 :: t2 }
+#define NEWTYPE_DEF(t1, un_t1, t2) newtype t1 = t1 { un_t1 :: t2 }
 
-#define NEWTYPE_DEF_TEXT(t1) NEWTYPE_DEF(t1, Text) NEWTYPE_TEXT_DERIVING
+#define NEWTYPE_DEF_TEXT(t1, un_t1) NEWTYPE_DEF(t1, un_t1, Text) NEWTYPE_TEXT_DERIVING
 
-#define INSTANCES_BY_SHOW_READ(t) \
-instance ParamValue t where { toParamValue = tshow . un ## t } ; \
-instance ToJSON t where { toJSON = toJSON . un ## t }; \
+#define INSTANCES_BY_SHOW_READ(t, un_t) \
+instance ParamValue t where { toParamValue = tshow . un_t } ; \
+instance ToJSON t where { toJSON = toJSON . un_t }; \
 instance FromJSON t where { \
   parseJSON (A.String s) = maybe mzero (return . t) $ readMay s ;\
   parseJSON v = fmap t $ parseJSON v; \
                           }
 
-NEWTYPE_DEF_TEXT(AccessToken)
-NEWTYPE_DEF_TEXT(SuiteKey)
-NEWTYPE_DEF_TEXT(CorpId)
-NEWTYPE_DEF_TEXT(AppKey)
-NEWTYPE_DEF_TEXT(AppSecret)
-NEWTYPE_DEF_TEXT(JsApiTicket)
-NEWTYPE_DEF_TEXT(Nonce)
-NEWTYPE_DEF_TEXT(UserId)
-NEWTYPE_DEF_TEXT(SnsTmpAuthCode)
-NEWTYPE_DEF_TEXT(DeviceId)
-NEWTYPE_DEF_TEXT(MediaId)
-NEWTYPE_DEF_TEXT(OpenId)
-NEWTYPE_DEF_TEXT(UnionId)
-NEWTYPE_DEF_TEXT(MessageId)
+NEWTYPE_DEF_TEXT(AccessToken, unAccessToken)
+NEWTYPE_DEF_TEXT(SuiteKey, unSuiteKey)
+NEWTYPE_DEF_TEXT(CorpId, unCorpId)
+NEWTYPE_DEF_TEXT(AppKey, unAppKey)
+NEWTYPE_DEF_TEXT(AppSecret, unAppSecret)
+NEWTYPE_DEF_TEXT(JsApiTicket, unJsApiTicket)
+NEWTYPE_DEF_TEXT(Nonce, unNonce)
+NEWTYPE_DEF_TEXT(UserId, unUserId)
+NEWTYPE_DEF_TEXT(SnsTmpAuthCode, unSnsTmpAuthCode)
+NEWTYPE_DEF_TEXT(DeviceId, unDeviceId)
+NEWTYPE_DEF_TEXT(MediaId, unMediaId)
+NEWTYPE_DEF_TEXT(OpenId, unOpenId)
+NEWTYPE_DEF_TEXT(UnionId, unUnionId)
+NEWTYPE_DEF_TEXT(MessageId, unMessageId)
 
 -- | 从现在文档看，登录应用取 access token 跟其它钉钉应用使用相同的接口取 access token
 -- 所以类型上不区分 SnsAppId/AppKey 等
@@ -70,56 +68,56 @@ type SnsAppSecret = AppSecret
 type SnsAccessToken = AccessToken
 
 -- CallbackToken 是回调接口用的 Token
-NEWTYPE_DEF_TEXT(CallbackToken)
+NEWTYPE_DEF_TEXT(CallbackToken, unCallbackToken)
 
-NEWTYPE_DEF_TEXT(EncodingAesKey)
-NEWTYPE_DEF_TEXT(ProcessCode)
-NEWTYPE_DEF_TEXT(ProcessInstanceId)
-NEWTYPE_DEF_TEXT(BizCategoryId)
+NEWTYPE_DEF_TEXT(EncodingAesKey, unEncodingAesKey)
+NEWTYPE_DEF_TEXT(ProcessCode, unProcessCode)
+NEWTYPE_DEF_TEXT(ProcessInstanceId, unProcessInstanceId)
+NEWTYPE_DEF_TEXT(BizCategoryId, unBizCategoryId)
 
 -- | 审批实例业务编号. 含义不明，仅见于 "获取单个审批实例" 接口文档
-NEWTYPE_DEF_TEXT(ProcessBizId)
+NEWTYPE_DEF_TEXT(ProcessBizId, unProcessBizId)
 
-NEWTYPE_DEF_TEXT(ProcessTaskId)
+NEWTYPE_DEF_TEXT(ProcessTaskId, unProcessTaskId)
 
 -- | 日志模板标识
-NEWTYPE_DEF_TEXT(ReportCode)
+NEWTYPE_DEF_TEXT(ReportCode, unReportCode)
 
 -- | 日志唯一id
-NEWTYPE_DEF_TEXT(ReportId)
+NEWTYPE_DEF_TEXT(ReportId, unReportId)
 
 
-NEWTYPE_DEF(AgentId, Int64)
+NEWTYPE_DEF(AgentId, unAgentId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            , ToJSON, FromJSON
            )
 
-NEWTYPE_DEF(ChatId, Int64)
+NEWTYPE_DEF(ChatId, unChartId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            , ToJSON, FromJSON
            )
 
-NEWTYPE_DEF(CorpConversationAsyncSendId, Int64)
+NEWTYPE_DEF(CorpConversationAsyncSendId, unCorpConversationAsyncSendId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            , ToJSON, FromJSON
            )
 
 
-NEWTYPE_DEF(RoleId, Int64)
+NEWTYPE_DEF(RoleId, unRoleId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            , ToJSON, FromJSON
            )
 
-NEWTYPE_DEF(DeptId, Int64)
+NEWTYPE_DEF(DeptId, unDeptId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            )
 
-INSTANCES_BY_SHOW_READ(DeptId)
+INSTANCES_BY_SHOW_READ(DeptId, unDeptId)
 
 -- | 根部门代表的就是整个企业
 rootDeptId :: DeptId
@@ -144,40 +142,40 @@ instance FromJSON ProcessInstResult where
 
 
 -- | 考勤记录详情
-NEWTYPE_DEF(AttendPunchDetailsId, Int64)
+NEWTYPE_DEF(AttendPunchDetailsId, unAttendPunchDetailsId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            )
-INSTANCES_BY_SHOW_READ(AttendPunchDetailsId)
+INSTANCES_BY_SHOW_READ(AttendPunchDetailsId, unAttendPunchDetailsId)
 
 
 -- | 考勤记录打卡结果
-NEWTYPE_DEF(AttendPunchResId, Int64)
+NEWTYPE_DEF(AttendPunchResId, unAttendPunchResId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            )
-INSTANCES_BY_SHOW_READ(AttendPunchResId)
+INSTANCES_BY_SHOW_READ(AttendPunchResId, unAttendPunchResId)
 
 -- | 考勤组
-NEWTYPE_DEF(AttendGroupId, Int64)
+NEWTYPE_DEF(AttendGroupId, unAttendGroupId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            )
-INSTANCES_BY_SHOW_READ(AttendGroupId)
+INSTANCES_BY_SHOW_READ(AttendGroupId, unAttendGroupId)
 
 -- | 排班
-NEWTYPE_DEF(AttendPlanId, Int64)
+NEWTYPE_DEF(AttendPlanId, unAttendPlanId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            )
-INSTANCES_BY_SHOW_READ(AttendPlanId)
+INSTANCES_BY_SHOW_READ(AttendPlanId, unAttendPlanId)
 
 -- | 考勤班次
-NEWTYPE_DEF(AttendClassId, Int64)
+NEWTYPE_DEF(AttendClassId, unAttendClassId, Int64)
   deriving (Show, Eq, Ord, Typeable, ToMarkup
            , PersistField, PersistFieldSql
            )
-INSTANCES_BY_SHOW_READ(AttendClassId)
+INSTANCES_BY_SHOW_READ(AttendClassId, unAttendClassId)
 
 
 class HasAccessToken a where
