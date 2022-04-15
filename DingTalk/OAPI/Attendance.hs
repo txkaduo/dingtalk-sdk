@@ -282,8 +282,8 @@ data AttendPunchResult = AttendPunchResult
   { attendPunchResId             :: AttendPunchResId
   -- , attendPunchResDetailsId      :: AttendPunchDetailsId
   , attendPunchResCorpId         :: CorpId
-  , attendPunchResGroupId        :: AttendGroupId
-  , attendPunchResPlanId         :: AttendPlanId
+  , attendPunchResGroupId        :: Maybe AttendGroupId
+  , attendPunchResPlanId         :: Maybe AttendPlanId
   , attendPunchResWorkDate       :: Timestamp
   , attendPunchResUserId         :: UserId
   , attendPunchResCheckType      :: AttendCheckType
