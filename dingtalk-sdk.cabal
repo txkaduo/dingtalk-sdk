@@ -36,6 +36,9 @@ library
                        DingTalk.OAPI.Attendance
                        DingTalk.OAPI.Report
                        DingTalk.OAPI.ErrorCode
+                       DingTalk.VxAPI.Basic
+                       DingTalk.VxAPI.ErrorCode
+                       DingTalk.VxAPI.Process
                        DingTalk.JS
                        DingTalk.Yesod
                        DingTalk.Misc

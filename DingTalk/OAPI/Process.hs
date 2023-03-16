@@ -47,42 +47,6 @@ import Control.Concurrent (threadDelay)
 -- }}}1
 
 
-data ProcessInfo = ProcessInfo
-  { processInfoName    :: Text
-  , processInfoCode    :: ProcessCode
-  , processInfoIconUrl :: Text
-  , processInfoUrl     :: Text
-  }
-
-data ProcessListResponse = ProcessListResponse
-  { processListNextCursor :: Maybe Int
-  , processListItems      :: [ProcessInfo]
-  }
-
--- {{{1 instances
-instance FromJSON ProcessInfo where
-  parseJSON = withObject "ProcessInfo" $ \ o -> do
-                ProcessInfo <$> o .: "name"
-                            <*> o .: "process_code"
-                            <*> o .: "icon_url"
-                            <*> o .: "url"
-
-instance ToJSON ProcessInfo where
-  toJSON (ProcessInfo {..}) =
-    object [ "name" .= processInfoName
-           , "process_code" .= processInfoCode
-           , "icon_url" .= processInfoIconUrl
-           , "url" .= processInfoUrl
-           ]
-
-instance FromJSON ProcessListResponse where
-  parseJSON = withObject "ProcessListResponse" $ \ o -> do
-                o2 <- o .: "result"
-                ProcessListResponse <$> o2 .:? "next_cursor"
-                                    <*> o2 .: "process_list"
--- }}}1
-
-
 maxOapiGetProcessBatchSize :: Int
 maxOapiGetProcessBatchSize = 100
 

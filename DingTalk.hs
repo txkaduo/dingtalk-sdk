@@ -16,6 +16,9 @@ module DingTalk
   , module DingTalk.Yesod
   , module DingTalk.Misc
   , module DingTalk.OAPI.ErrorCode
+  , module DingTalk.VxAPI.Basic
+  , module DingTalk.VxAPI.ErrorCode
+  , module DingTalk.VxAPI.Process
   ) where
 
 import DingTalk.Types
@@ -35,3 +38,6 @@ import DingTalk.OAPI.Attendance
 import DingTalk.OAPI.Report
 import DingTalk.OAPI.Callback
 import DingTalk.OAPI.ErrorCode
+import DingTalk.VxAPI.Basic
+import DingTalk.VxAPI.ErrorCode
+import DingTalk.VxAPI.Process

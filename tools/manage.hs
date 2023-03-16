@@ -97,6 +97,7 @@ data Options = Options
   { optVerbose    :: Int
   , optAppKey     :: AppKey
   , optAppSecret  :: AppSecret
+  , optApiVersion :: Int
   , optCommand    :: ManageCmd
   }
 
@@ -109,6 +110,10 @@ optionsParse = Options
                         <> help "Verbose Level (0 - 3)")
                 <*> fmap (AppKey . fromString) (strOption (long "app-key" <> short 'a' <> metavar "APP_KEY"))
                 <*> fmap (AppSecret . fromString) (strOption (long "app-secret" <> short 's' <> metavar "APP_SECRET"))
+                <*> (option auto
+                        $ long "api-version" <> short 'V' <> value 1
+                        <> metavar "VERSION"
+                        <> help "API Version, 0 for old, 1 for current")
                 <*> manageCmdParser
 -- }}}1
 
@@ -270,12 +275,7 @@ start :: (MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
       -> m ()
 -- {{{1
 start opts api_env = flip runReaderT api_env $ do
-  err_or_atk <- oapiGetAccessToken corp_id corp_secret
-  atk <- case err_or_atk of
-    Right atk -> return atk
-    Left err -> do
-      $logError $ "oapiGetAccessToken failed: " <> utshow err
-      liftIO exitFailure
+  atk <- api_call_or_abort "GetAccessToken" (oapiGetAccessToken corp_id corp_secret) (apiVxGetAccessToken corp_id corp_secret)
 
   case optCommand opts of
     Scopes -> do
@@ -395,22 +395,24 @@ start opts api_env = flip runReaderT api_env $ do
           liftIO $ LB.putStr $ resp ^. responseBody
 
     SearchProcess m_txt -> do
-      let filter_conduit = case m_txt of
+      let filter_conduit :: Monad n => ConduitT ProcessInfo ProcessInfo n ()
+          filter_conduit = case m_txt of
                              Nothing -> awaitForever yield
                              Just txt -> CL.filter (isInfixOf txt . processInfoName)
 
-      err_or_res <- flip runReaderT atk $ runExceptT $ runConduit $ do
-                      oapiSourceProcessListByUser 0.5 Nothing
-                        .| filter_conduit
-                        .| CL.consume
+      let run_call f = flip runReaderT atk $ runExceptT $ runConduit $ f .| filter_conduit .| CL.consume
+      proc_infos <- if optApiVersion opts == 0
+                           then do
+                                 ( flip runReaderT atk $ runExceptT $ runConduit $
+                                      oapiSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
+                                   ) >>= api_from_right "oapiSourceProcessListByUser"
+                           else do
+                                 ( flip runReaderT atk $ runExceptT $ runConduit $
+                                      apiVxSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
+                                   ) >>= api_from_right "apiVxSourceProcessListByUser"
 
-      case err_or_res of
-        Left err -> do
-          $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
-
-        Right proc_infos -> do
-          forM_ proc_infos $ \ proc_info -> do
-            putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
+      forM_ proc_infos $ \ proc_info -> do
+        putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
 
     ListProcessInstId proc_code seconds m_user_id -> do
       now <- liftIO getPOSIXTime
@@ -529,6 +531,24 @@ start opts api_env = flip runReaderT api_env $ do
   where
     corp_id = optAppKey opts
     corp_secret = optAppSecret opts
+
+    api_call_or_abort :: (MonadIO n, MonadLogger n, Show e1, Show e2)
+                      => Text
+                      -> n (Either e1 r)
+                      -> n (Either e2 r)
+                      -> n r
+    api_call_or_abort api_name callf0 callf1 = do
+      if optApiVersion opts == 0
+         then callf0 >>= api_from_right api_name
+         else callf1 >>= api_from_right api_name
+
+    api_from_right :: (MonadIO n, MonadLogger n, Show e) => Text -> Either e a -> n a
+    api_from_right api_name err_or_res =
+      case err_or_res of
+        Right r -> return r
+        Left err -> do
+          $logError $ api_name <> " failed: " <> utshow err
+          liftIO exitFailure
 -- }}}1
 
 

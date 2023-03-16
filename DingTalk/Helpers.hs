@@ -61,6 +61,10 @@ infix 3 &=
 infix 3 &?=
 (&?=) k v = (k &=) <$> v
 
+(&!=) :: ParamValue a => Text -> a -> Maybe (Text, SomeParamValue)
+infix 3 &!=
+(&!=) k v = Just $ k &= v
+
 
 type ParamKvList = [(Text, SomeParamValue)]
 
