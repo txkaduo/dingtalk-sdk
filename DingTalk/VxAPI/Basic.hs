@@ -7,14 +7,18 @@ import           Control.Concurrent (threadDelay)
 import           Control.Monad.Except hiding (mapM_)
 import           Control.Monad.Logger
 import           Data.Aeson           as A hiding (Options)
-import qualified Data.Aeson.Extra     as AE
+-- import qualified Data.Aeson.Extra     as AE
+import           Data.Aeson.TH                 (deriveJSON)
+#if !MIN_VERSION_aeson(1, 4, 7)
+import           Data.Aeson.Types              (camelTo2)
+#endif
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
 import           Network.Wreq hiding (Proxy)
 import           Network.Wreq.Types   (Postable)
 import qualified Network.Wreq.Session as WS
 import           Text.Show.Unicode (ushow)
-import           Data.Proxy
+-- import           Data.Proxy
 
 import DingTalk.Types
 import DingTalk.Helpers
@@ -72,6 +76,17 @@ instance FromJSON a => FromJSON (ApiVxErrorOrPayload a) where
 
       parse_as_x = parseJSON v
 -- }}}1
+
+
+-- | 目测多数新版的接口回复报文都是类似的结构
+-- 'success' 字段有些接口有，有些没有，但似乎都没什么实际意义
+data AviCallResponse a = AviCallResponse
+  { aviCallResponseResult  :: a
+  , aviCallResponseSuccess :: Maybe Bool
+  }
+
+
+$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 15 }) ''AviCallResponse)
 
 
 apiVxToPayload :: (MonadLogger m, MonadIO m, FromJSON a)
@@ -185,8 +200,17 @@ apiVxGetCall :: (HttpCallMonad env m, FromJSON a)
              -> ParamKvList
              -> ReaderT AccessToken m (Either ApiVxError a)
 apiVxGetCall ver url_path kv_list = apiVxCall ver url_path opts (Nothing :: Maybe ByteString)
-  where
-    opts = defaults & applyParamKvListInQs kv_list
+  where opts = defaults & applyParamKvListInQs kv_list
+
+
+-- | 若响应报文使用的是 AviCallResponse 通用格式: 真正的 payload 在 result 字段里
+apiVxGetCallInResult :: (HttpCallMonad env m, FromJSON a)
+                     => String
+                     -> String
+                     -> ParamKvList
+                     -> ReaderT AccessToken m (Either ApiVxError a)
+apiVxGetCallInResult ver url_path kv_list =
+  fmap aviCallResponseResult <$> apiVxGetCall ver url_path kv_list
 
 
 apiVxPostCall :: (HttpCallMonad env m, FromJSON a, Postable p)
@@ -196,19 +220,36 @@ apiVxPostCall :: (HttpCallMonad env m, FromJSON a, Postable p)
               -> p
               -> ReaderT AccessToken m (Either ApiVxError a)
 apiVxPostCall ver url_path kv_list payload = apiVxCall ver url_path opts (Just payload)
-  where
-    opts = defaults & applyParamKvListInQs kv_list
+  where opts = defaults & applyParamKvListInQs kv_list
 
 
-apiVxGetAccessToken :: HttpCallMonad env m
-                    => AppKey
-                    -> AppSecret
-                    -> m (Either ApiVxError AccessToken)
-apiVxGetAccessToken app_key app_secret = do
+-- | 若响应报文使用的是 AviCallResponse 通用格式: 真正的 payload 在 result 字段里
+apiVxPostCallInResult :: (HttpCallMonad env m, FromJSON a, Postable p)
+                      => String
+                      -> String
+                      -> ParamKvList
+                      -> p
+                      -> ReaderT AccessToken m (Either ApiVxError a)
+apiVxPostCallInResult ver url_path kv_list payload =
+  fmap aviCallResponseResult <$> apiVxPostCall ver url_path kv_list payload
+
+
+data VxAccessTokenResp = VxAccessTokenResp
+  { vxAccessTokenRespAccessToken :: AccessToken
+  , vxAccessTokenRespExpireIn    :: Int
+  }
+
+$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 17 }) ''VxAccessTokenResp)
+
+
+apiVxGetAccessToken' :: HttpCallMonad env m
+                     => AppKey
+                     -> AppSecret
+                     -> m (Either ApiVxError VxAccessTokenResp)
+apiVxGetAccessToken' app_key app_secret = do
   HttpApiRunEnv t sess <- ask
-  throttleRemoteCall t $ do
+  throttleRemoteCall t $
     apiVxAutoRetryCall url_path opts (WS.postWith opts sess url payload)
-      >>= return . fmap (AE.getSingObject (Proxy :: Proxy "accessToken"))
   where
     opts = defaults & header "Content-Type" .~ [ "application/json" ]
     url_path = "/oauth2/accessToken"
@@ -219,6 +260,13 @@ apiVxGetAccessToken app_key app_secret = do
                 , "appSecret" .= app_secret
                 ]
 
+
+apiVxGetAccessToken :: HttpCallMonad env m
+                    => AppKey
+                    -> AppSecret
+                    -> m (Either ApiVxError AccessToken)
+apiVxGetAccessToken app_key app_secret =
+  fmap vxAccessTokenRespAccessToken <$> apiVxGetAccessToken' app_key app_secret
 
 
 -- vim: set foldmethod=marker:

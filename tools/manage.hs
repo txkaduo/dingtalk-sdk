@@ -395,24 +395,30 @@ start opts api_env = flip runReaderT api_env $ do
           liftIO $ LB.putStr $ resp ^. responseBody
 
     SearchProcess m_txt -> do
-      let filter_conduit :: Monad n => ConduitT ProcessInfo ProcessInfo n ()
-          filter_conduit = case m_txt of
-                             Nothing -> awaitForever yield
-                             Just txt -> CL.filter (isInfixOf txt . processInfoName)
+      if optApiVersion opts == 0
+         then do
+              let filter_conduit = case m_txt of
+                                     Nothing -> awaitForever yield
+                                     Just txt -> CL.filter (isInfixOf txt . processInfoName)
+              let run_call f = flip runReaderT atk $ runExceptT $ runConduit $ f .| filter_conduit .| CL.consume
+              proc_infos <-
+               ( flip runReaderT atk $ runExceptT $ runConduit $
+                    oapiSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
+                 ) >>= api_from_right "oapiSourceProcessListByUser"
 
-      let run_call f = flip runReaderT atk $ runExceptT $ runConduit $ f .| filter_conduit .| CL.consume
-      proc_infos <- if optApiVersion opts == 0
-                           then do
-                                 ( flip runReaderT atk $ runExceptT $ runConduit $
-                                      oapiSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
-                                   ) >>= api_from_right "oapiSourceProcessListByUser"
-                           else do
-                                 ( flip runReaderT atk $ runExceptT $ runConduit $
-                                      apiVxSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
-                                   ) >>= api_from_right "apiVxSourceProcessListByUser"
+              forM_ proc_infos $ \ proc_info -> do
+                putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
+         else do
+              let filter_conduit = case m_txt of
+                                     Nothing -> awaitForever yield
+                                     Just txt -> CL.filter (isInfixOf txt . axProcessInfoName)
+              proc_infos <-
+                 ( flip runReaderT atk $ runExceptT $ runConduit $
+                      apiVxSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
+                   ) >>= api_from_right "apiVxSourceProcessListByUser"
 
-      forM_ proc_infos $ \ proc_info -> do
-        putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
+              forM_ proc_infos $ \ proc_info -> do
+                putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
 
     ListProcessInstId proc_code seconds m_user_id -> do
       now <- liftIO getPOSIXTime
