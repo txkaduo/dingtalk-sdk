@@ -18,6 +18,7 @@ import qualified Data.Aeson.Types     as A
 import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Base64.URL as B64L
 import qualified Data.ByteString.Char8      as C8
+import qualified Data.Char as Char
 import           Data.List            ((!!))
 import qualified Data.Text            as T
 import           Network.Wreq hiding (Proxy)
@@ -210,6 +211,10 @@ logUnexpectedEmptyResult err_msg res = do
   return res
 -- }}}1
 
+
+lowerFirst :: String -> String
+lowerFirst (x:xs) = Char.toLower x : xs
+lowerFirst []     = []
 
 
 -- vim: set foldmethod=marker:

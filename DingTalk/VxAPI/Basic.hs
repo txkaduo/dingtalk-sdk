@@ -9,9 +9,6 @@ import           Control.Monad.Logger
 import           Data.Aeson           as A hiding (Options)
 -- import qualified Data.Aeson.Extra     as AE
 import           Data.Aeson.TH                 (deriveJSON)
-#if !MIN_VERSION_aeson(1, 4, 7)
-import           Data.Aeson.Types              (camelTo2)
-#endif
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
 import           Network.Wreq hiding (Proxy)
@@ -86,7 +83,7 @@ data AviCallResponse a = AviCallResponse
   }
 
 
-$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 15 }) ''AviCallResponse)
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 15 }) ''AviCallResponse)
 
 
 apiVxToPayload :: (MonadLogger m, MonadIO m, FromJSON a)
@@ -239,7 +236,7 @@ data VxAccessTokenResp = VxAccessTokenResp
   , vxAccessTokenRespExpireIn    :: Int
   }
 
-$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 17 }) ''VxAccessTokenResp)
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxAccessTokenResp)
 
 
 apiVxGetAccessToken' :: HttpCallMonad env m

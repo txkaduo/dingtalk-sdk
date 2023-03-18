@@ -13,7 +13,7 @@ module DingTalk.OAPI.Process
   , ProcessOpRecord(..), ProcessBizAction(..), ProcessTaskStatus(..), ProcessTaskResult(..), FormComponentInput(..)
   , FormCompDetailsRow(..), FormCompDetailsX(..)
   , ProcessTaskInfo(..), ProcessInstInfo(..)
-  , processInstInfoId
+  , processInstInfoId, processInstInfoApprovedTime
   , processInstInfoFormLookup
   , oapiGetProcessInstanceInfo, oapiGetProcessInstanceInfo'
   , oapiGetUserProcessInstanceToDo
@@ -34,7 +34,7 @@ import           Data.List.NonEmpty   (NonEmpty(..))
 import           Data.Proxy
 import           Data.Time
 import qualified Data.Set.NonEmpty as NES
-import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
+-- import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 import           Money
 
 import DingTalk.OAPI.Basic
@@ -339,38 +339,66 @@ oapiSourceProcessInstId proc_code start_time m_end_time m_user_ids = loop 0
 -- }}}1
 
 
-data ProcessInstStatus = ProcessInstNew
-                       | ProcessInstRunning
-                       | ProcessInstTerminated
-                       | ProcessInstCompleted
-                       | ProcessInstError -- ^ undocumented
-                       deriving (Show, Eq, Ord, Enum, Bounded)
+data ProcessOpRecord = ProcessOpRecord
+  { processOpUserId :: UserId
+  , processOpTime   :: LocalTime
+  , processOpType   :: ProcessOpType
+  , processOpResult :: ProcessOpResult
+  , processOpRemark :: Maybe Text
+  }
 
--- {{{1
-instance ParamValue ProcessInstStatus where
-  toParamValue ProcessInstNew        = "NEW"
-  toParamValue ProcessInstRunning    = "RUNNING"
-  toParamValue ProcessInstTerminated = "TERMINATED"
-  toParamValue ProcessInstCompleted  = "COMPLETED"
-  toParamValue ProcessInstError      = "ERROR"
+instance FromJSON ProcessOpRecord where
+  parseJSON = withObject "ProcessOpRecord" $ \ o -> do
+                ProcessOpRecord <$> o .: "userid"
+                                <*> o .: "date"
+                                <*> o .: "operation_type"
+                                <*> o .: "operation_result"
+                                <*> (o .:? "remark" >>= nullTextAsNothing)
 
-instance ToJSON ProcessInstStatus where
-  toJSON = toJSON . toParamValue
+-- not needed for DingTalk API, but useful for serializing for cache
+instance ToJSON ProcessOpRecord where
+  toJSON (ProcessOpRecord {..}) = object $ catMaybes $
+    [ pure $ "userid" .= processOpUserId
+    , pure $ "date" .= formatTime defaultTimeLocale "%F %T" processOpTime
+    , pure $ "operation_type" .= processOpType
+    , pure $ "operation_result" .= processOpResult
+    , ("remark" .=) <$> processOpRemark
+    ]
 
-instance FromJSON ProcessInstStatus where
-  parseJSON = parseJsonParamValueEnumBounded "ProcessInstStatus"
 
-instance PersistField ProcessInstStatus where
-  toPersistValue = toPersistValue . toParamValue
+data ProcessTaskInfo = ProcessTaskInfo
+  { processTaskInfoUserId     :: UserId
+  , processTaskInfoStatus     :: ProcessTaskStatus
+  , processTaskInfoResult     :: ProcessTaskResult
+  , processTaskInfoCreateTime :: Maybe LocalTime
+  -- ^ 实测这有可能不出现．比如流程有两个环节时就会这样
+  , processTaskInfoFinishTime :: Maybe LocalTime
+  , processTaskInfoId         :: ProcessTaskId
+  , processTaskInfoUrl        :: Text -- undocumented
+  }
 
-  fromPersistValue pv = do
-    t <- fromPersistValue pv
-    case parseEnumParamValueText t of
-      Nothing -> Left $ "Invalid ProcessInstStatus: " <> t
-      Just s -> pure s
+-- {{{1 instances
+instance FromJSON ProcessTaskInfo where
+  parseJSON = withObject "ProcessTaskInfo" $ \ o -> do
+                ProcessTaskInfo <$> o .: "userid"
+                                <*> o .: "task_status"
+                                <*> o .: "task_result"
+                                <*> o .:? "create_time"
+                                <*> o .:? "finish_time"
+                                <*> o .: "taskid"
+                                <*> o .: "url"
 
-instance PersistFieldSql ProcessInstStatus where
-  sqlType _ = sqlType (Proxy :: Proxy Text)
+-- not needed for DingTalk API, but useful for serializing for cache
+instance ToJSON ProcessTaskInfo where
+  toJSON (ProcessTaskInfo {..}) = object $ catMaybes
+    [ pure $ "userid" .= processTaskInfoUserId
+    , pure $ "task_status" .= processTaskInfoStatus
+    , pure $ "task_result" .= processTaskInfoResult
+    , ( "create_time" .= ) . formatTime defaultTimeLocale "%F %T" <$> processTaskInfoCreateTime
+    , ( "finish_time" .= ) . formatTime defaultTimeLocale "%F %T" <$> processTaskInfoFinishTime
+    , pure $ "taskid" .= processTaskInfoId
+    , pure $ "url" .= processTaskInfoUrl
+    ]
 -- }}}1
 
 
@@ -449,6 +477,14 @@ instance ToJSON ProcessInstInfo where
         , ("main_process_instance_id" .=) <$> processInstInfoMainProcessInstId
         ]
 -- }}}1
+
+
+-- | 审批通过的时间
+processInstInfoApprovedTime :: ProcessInstInfo -> Maybe LocalTime
+processInstInfoApprovedTime inst_info = do
+  guard $ processInstInfoStatus inst_info == ProcessInstCompleted
+  guard $ processInstInfoResult inst_info == Just ProcessApproved
+  processInstInfoFinishTime inst_info
 
 
 -- | XXX: ProcessInstInfo 居然没有 ProcessInstanceId 的字段

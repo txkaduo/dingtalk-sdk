@@ -9,6 +9,7 @@ import           Control.Monad (MonadFail(..))
 import           Control.Lens         hiding ((.=), argument)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
+import           Data.Aeson (ToJSON)
 import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
@@ -275,7 +276,7 @@ start :: (MonadLogger m, MonadIO m, MonadBaseControl IO m, RemoteCallThrottle t)
       -> m ()
 -- {{{1
 start opts api_env = flip runReaderT api_env $ do
-  atk <- api_call_or_abort "GetAccessToken" (oapiGetAccessToken corp_id corp_secret) (apiVxGetAccessToken corp_id corp_secret)
+  atk <- api_call_or_abort2 "GetAccessToken" (oapiGetAccessToken corp_id corp_secret) (apiVxGetAccessToken corp_id corp_secret)
 
   case optCommand opts of
     Scopes -> do
@@ -411,7 +412,7 @@ start opts api_env = flip runReaderT api_env $ do
          else do
               let filter_conduit = case m_txt of
                                      Nothing -> awaitForever yield
-                                     Just txt -> CL.filter (isInfixOf txt . axProcessInfoName)
+                                     Just txt -> CL.filter (isInfixOf txt . vxProcessInfoName)
               proc_infos <-
                  ( flip runReaderT atk $ runExceptT $ runConduit $
                       apiVxSourceProcessListByUser 0.5 Nothing .| filter_conduit .| CL.consume
@@ -436,15 +437,11 @@ start opts api_env = flip runReaderT api_env $ do
           forM_ proc_ids $ \ proc_id -> do
             putStrLn $ unProcessInstanceId proc_id
 
+
     ShowProcessInst proc_inst_id -> do
-      err_or_res <- flip runReaderT atk $ oapiGetProcessInstanceInfo proc_inst_id
-
-      case err_or_res of
-        Left err -> do
-          $logError $ "oapiGetProcessInstanceInfo failed: " <> utshow err
-
-        Right pii -> do
-          putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty pii
+      if optApiVersion opts == 0
+         then api_call_or_abort_then_print_json "oapiGetProcessInstanceInfo" (flip runReaderT atk $ oapiGetProcessInstanceInfo proc_inst_id)
+         else api_call_or_abort_then_print_json "apiVxGetProcessInstanceInfo" (flip runReaderT atk $ apiVxGetProcessInstanceInfo proc_inst_id)
 
 
     ProcessInstAddComment proc_inst_id user_id text photo_urls -> do
@@ -538,15 +535,32 @@ start opts api_env = flip runReaderT api_env $ do
     corp_id = optAppKey opts
     corp_secret = optAppSecret opts
 
-    api_call_or_abort :: (MonadIO n, MonadLogger n, Show e1, Show e2)
-                      => Text
-                      -> n (Either e1 r)
-                      -> n (Either e2 r)
-                      -> n r
-    api_call_or_abort api_name callf0 callf1 = do
+    api_call_or_abort2 :: (MonadIO n, MonadLogger n, Show e1, Show e2)
+                       => Text
+                       -> n (Either e1 r)
+                       -> n (Either e2 r)
+                       -> n r
+    api_call_or_abort2 api_name callf0 callf1 = do
       if optApiVersion opts == 0
          then callf0 >>= api_from_right api_name
          else callf1 >>= api_from_right api_name
+
+
+    api_call_or_abort :: (MonadIO n, MonadLogger n, Show e)
+                      => Text
+                      -> n (Either e r)
+                      -> n r
+    api_call_or_abort api_name callf = callf >>= api_from_right api_name
+
+
+    api_call_or_abort_then_print_json :: (MonadIO n, MonadLogger n, Show e, ToJSON r)
+                                      => Text
+                                      -> n (Either e r)
+                                      -> n ()
+    api_call_or_abort_then_print_json api_name callf = do
+      res <- api_call_or_abort api_name callf
+      putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty res
+
 
     api_from_right :: (MonadIO n, MonadLogger n, Show e) => Text -> Either e a -> n a
     api_from_right api_name err_or_res =

@@ -142,6 +142,7 @@ executable dingtalk-manage
                      , transformers
                      , monad-control
                      , conduit
+                     , aeson
                      , aeson-pretty
                      , time
                      , text

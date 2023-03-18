@@ -11,8 +11,8 @@ import           ClassyPrelude
 import           Control.Monad.Logger
 import           Control.Monad.Fail
 import           Data.Aeson as A
-import           Data.Time
 import           Data.Time.Clock.POSIX
+import           Data.Proxy
 import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 import qualified Network.Wreq.Session  as WS
 import           Text.Blaze.Html       (ToMarkup (..))
@@ -80,7 +80,15 @@ NEWTYPE_DEF_TEXT(BizCategoryId, unBizCategoryId)
 -- | 审批实例业务编号. 含义不明，仅见于 "获取单个审批实例" 接口文档
 NEWTYPE_DEF_TEXT(ProcessBizId, unProcessBizId)
 
+NEWTYPE_DEF_TEXT(ProcessActivityId, unProcessActivityId)
+
+-- 报文中, 旧版是String，新版接口是 Number
 NEWTYPE_DEF_TEXT(ProcessTaskId, unProcessTaskId)
+NEWTYPE_DEF(VxProcessTaskId, unVxProcessTaskId, Int64)
+  deriving (Show, Eq, Ord, Typeable, ToMarkup
+           , PersistField, PersistFieldSql
+           , ToJSON, FromJSON
+           )
 
 -- | 日志模板标识
 NEWTYPE_DEF_TEXT(ReportCode, unReportCode)
@@ -322,33 +330,6 @@ instance FromJSON ProcessOpResult where
 -- }}}1
 
 
-data ProcessOpRecord = ProcessOpRecord
-  { processOpUserId :: UserId
-  , processOpTime   :: LocalTime
-  , processOpType   :: ProcessOpType
-  , processOpResult :: ProcessOpResult
-  , processOpRemark :: Maybe Text
-  }
-
-instance FromJSON ProcessOpRecord where
-  parseJSON = withObject "ProcessOpRecord" $ \ o -> do
-                ProcessOpRecord <$> o .: "userid"
-                                <*> o .: "date"
-                                <*> o .: "operation_type"
-                                <*> o .: "operation_result"
-                                <*> (o .:? "remark" >>= nullTextAsNothing)
-
--- not needed for DingTalk API, but useful for serializing for cache
-instance ToJSON ProcessOpRecord where
-  toJSON (ProcessOpRecord {..}) = object $ catMaybes $
-    [ pure $ "userid" .= processOpUserId
-    , pure $ "date" .= formatTime defaultTimeLocale "%F %T" processOpTime
-    , pure $ "operation_type" .= processOpType
-    , pure $ "operation_result" .= processOpResult
-    , ("remark" .=) <$> processOpRemark
-    ]
-
-
 -- | 审批实例业务动作
 data ProcessBizAction = ProcessBizModify  -- ^ MODIFY表示该审批实例是基于原来的实例修改而来
                       | ProcessBizRevoke  -- ^ REVOKE表示该审批实例是由原来的实例撤销后重新发起的
@@ -414,42 +395,6 @@ instance ToJSON ProcessTaskResult where toJSON = toJSON . toParamValue
 
 instance FromJSON ProcessTaskResult where
   parseJSON = parseJsonParamValueEnumBounded "ProcessTaskResult"
--- }}}1
-
-
-data ProcessTaskInfo = ProcessTaskInfo
-  { processTaskInfoUserId     :: UserId
-  , processTaskInfoStatus     :: ProcessTaskStatus
-  , processTaskInfoResult     :: ProcessTaskResult
-  , processTaskInfoCreateTime :: Maybe LocalTime
-  -- ^ 实测这有可能不出现．比如流程有两个环节时就会这样
-  , processTaskInfoFinishTime :: Maybe LocalTime
-  , processTaskInfoId         :: ProcessTaskId
-  , processTaskInfoUrl        :: Text -- undocumented
-  }
-
--- {{{1 instances
-instance FromJSON ProcessTaskInfo where
-  parseJSON = withObject "ProcessTaskInfo" $ \ o -> do
-                ProcessTaskInfo <$> o .: "userid"
-                                <*> o .: "task_status"
-                                <*> o .: "task_result"
-                                <*> o .:? "create_time"
-                                <*> o .:? "finish_time"
-                                <*> o .: "taskid"
-                                <*> o .: "url"
-
--- not needed for DingTalk API, but useful for serializing for cache
-instance ToJSON ProcessTaskInfo where
-  toJSON (ProcessTaskInfo {..}) = object $ catMaybes
-    [ pure $ "userid" .= processTaskInfoUserId
-    , pure $ "task_status" .= processTaskInfoStatus
-    , pure $ "task_result" .= processTaskInfoResult
-    , ( "create_time" .= ) . formatTime defaultTimeLocale "%F %T" <$> processTaskInfoCreateTime
-    , ( "finish_time" .= ) . formatTime defaultTimeLocale "%F %T" <$> processTaskInfoFinishTime
-    , pure $ "taskid" .= processTaskInfoId
-    , pure $ "url" .= processTaskInfoUrl
-    ]
 -- }}}1
 
 
@@ -527,6 +472,59 @@ instance ToJSON FormCompDetailsX where
 instance FromJSON FormCompDetailsX where
   parseJSON = withObject "FormCompDetailsX" $ \ o -> do
     FormCompDetailsX <$> o .: "rowValue"
+
+
+-- | 审批实例状态
+-- XXX: 基本跟旧版一样，但多了个 canceled. 理解为旧版只是文档不完整，内部数据应该是共享的，所以应使用相同类型表达
+data ProcessInstStatus = ProcessInstNew
+                       | ProcessInstRunning
+                       | ProcessInstTerminated
+                       | ProcessInstCompleted
+                       | ProcessInstCanceled
+                       | ProcessInstError -- ^ undocumented
+                       deriving (Show, Eq, Ord, Enum, Bounded)
+
+-- {{{1
+instance ParamValue ProcessInstStatus where
+  toParamValue ProcessInstNew        = "NEW"
+  toParamValue ProcessInstRunning    = "RUNNING"
+  toParamValue ProcessInstTerminated = "TERMINATED"
+  toParamValue ProcessInstCompleted  = "COMPLETED"
+  toParamValue ProcessInstCanceled   = "CANCELED"
+  toParamValue ProcessInstError      = "ERROR"
+
+instance ToJSON ProcessInstStatus where
+  toJSON = toJSON . toParamValue
+
+instance FromJSON ProcessInstStatus where
+  parseJSON = parseJsonParamValueEnumBounded "ProcessInstStatus"
+
+instance PersistField ProcessInstStatus where
+  toPersistValue = toPersistValue . toParamValue
+
+  fromPersistValue pv = do
+    t <- fromPersistValue pv
+    case parseEnumParamValueText t of
+      Nothing -> Left $ "Invalid ProcessInstStatus: " <> t
+      Just s -> pure s
+
+instance PersistFieldSql ProcessInstStatus where
+  sqlType _ = sqlType (Proxy :: Proxy Text)
+-- }}}1
+
+
+processInstStatusIsFinished :: ProcessInstStatus -> Bool
+processInstStatusIsFinished ProcessInstNew        = False
+processInstStatusIsFinished ProcessInstRunning    = False
+processInstStatusIsFinished ProcessInstTerminated = True
+processInstStatusIsFinished ProcessInstCompleted  = True
+processInstStatusIsFinished ProcessInstCanceled   = True
+processInstStatusIsFinished ProcessInstError      = True
+
+
+processInstStatusListFinished :: [ ProcessInstStatus ]
+processInstStatusListFinished = filter processInstStatusIsFinished [ minBound .. maxBound ]
+
 
 
 -- vim: set foldmethod=marker:

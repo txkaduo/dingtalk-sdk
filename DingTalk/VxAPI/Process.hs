@@ -6,14 +6,12 @@ import           ClassyPrelude
 import           Control.Monad.Except hiding (mapM_, mapM)
 import           Data.Aeson           as A
 import           Data.Aeson.TH                 (deriveJSON)
-#if !MIN_VERSION_aeson(1, 4, 7)
-import           Data.Aeson.Types              (camelTo2)
-#endif
 import           Data.Conduit
 import           Data.List.NonEmpty   (NonEmpty(..))
-import           Data.Proxy
-import           Data.Time
-import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
+-- import           Data.Proxy
+import qualified Data.Text            as T
+-- import           Data.Time
+-- import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 
 import DingTalk.Types
 import DingTalk.Helpers
@@ -28,36 +26,36 @@ import Control.Concurrent (threadDelay)
 -- | 获取指定用户可见的审批表单列表 报文关键内容
 -- 跟旧版一样，但 json 字段格式不同
 data VxProcessInfo = VxProcessInfo
-  { axProcessInfoName    :: Text
-  , axProcessInfoCode    :: ProcessCode
-  , axProcessInfoIconUrl :: Text
-  , axProcessInfoUrl     :: Text
+  { vxProcessInfoName        :: Text
+  , vxProcessInfoProcessCode :: ProcessCode
+  , vxProcessInfoIconUrl     :: Text
+  , vxProcessInfoUrl         :: Text
   }
 
-$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 13 }) ''VxProcessInfo)
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 13 }) ''VxProcessInfo)
 
 
 -- | 获取指定用户可见的审批表单列表 报文
 data VxUserVisibleProcessResponse = VxUserVisibleProcessResponse
-  { axUserVisibleProcessNextToken :: Maybe Int
-  , axUserVisibleProcessItems     :: [VxProcessInfo]
+  { vxUserVisibleProcessNextToken   :: Maybe Int
+  , vxUserVisibleProcessProcessList :: [VxProcessInfo]
   }
 
-$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 20 }) ''VxUserVisibleProcessResponse)
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 20 }) ''VxUserVisibleProcessResponse)
 
 
 -- | 获取当前企业所有可管理的表单的报文关键内容，相比 "获取指定用户可见的审批表单列表" 包含更多字段
 data VxProcessInfoEx = VxProcessInfoEx
-  { axProcessInfoExIconName       :: Text
-  , axProcessInfoExFlowTitle      :: Text
-  , axProcessInfoExProcessCode    :: ProcessCode
-  , axProcessInfoExNewProcess     :: Bool
-  , axProcessInfoExIconUrl        :: Text
-  , axProcessInfoExAttendanceType :: Int
-  , axProcessInfoExGmtModified    :: UTCTime
+  { vxProcessInfoExIconName       :: Text
+  , vxProcessInfoExFlowTitle      :: Text
+  , vxProcessInfoExProcessCode    :: ProcessCode
+  , vxProcessInfoExNewProcess     :: Bool
+  , vxProcessInfoExIconUrl        :: Text
+  , vxProcessInfoExAttendanceType :: Int
+  , vxProcessInfoExGmtModified    :: UTCTime
   }
 
-$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 15 }) ''VxProcessInfoEx)
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 15 }) ''VxProcessInfoEx)
 
 
 -- | 获取指定用户可见的审批表单列表，分页版本
@@ -70,7 +68,7 @@ apiVxGetProcessListByUser m_user_id m_next_token batch_size =
   apiVxGetCallInResult "v1.0" "/workflow/processes/userVisibilities/templates"
     (catMaybes
         [ "userId" &?= m_user_id
-        , "nextToken" &?= m_next_token
+        , "nextToken" &!= fromMaybe 0 m_next_token
         , "maxResults" &!= min maxApiVxUserVisibleProcessBatchSize batch_size
         ]
     )
@@ -92,58 +90,9 @@ apiVxSourceProcessListByUser delay_sec m_user_id = loop Nothing
 
         loop m_next_token = do
           resp <- lift $ ExceptT $ apiVxGetProcessListByUser m_user_id m_next_token size
-          mapM_ yield (axUserVisibleProcessItems resp)
-          mapM_ (\ x -> delay >> loop (Just x)) (axUserVisibleProcessNextToken resp)
+          mapM_ yield (vxUserVisibleProcessProcessList resp)
+          mapM_ (\ x -> delay >> loop (Just x)) (vxUserVisibleProcessNextToken resp)
 
-
--- | 审批实例状态
--- 基本跟旧版一样，但多了个 canceled
-data VxProcessInstStatus = VxProcessInstNew
-                         | VxProcessInstRunning
-                         | VxProcessInstTerminated
-                         | VxProcessInstCompleted
-                         | VxProcessInstCanceled
-                         -- | ProcessInstError -- ^ undocumented
-                         deriving (Show, Eq, Ord, Enum, Bounded)
-
--- {{{1
-instance ParamValue VxProcessInstStatus where
-  toParamValue VxProcessInstNew        = "NEW"
-  toParamValue VxProcessInstRunning    = "RUNNING"
-  toParamValue VxProcessInstTerminated = "TERMINATED"
-  toParamValue VxProcessInstCompleted  = "COMPLETED"
-  toParamValue VxProcessInstCanceled   = "CANCELED"
-
-instance ToJSON VxProcessInstStatus where
-  toJSON = toJSON . toParamValue
-
-instance FromJSON VxProcessInstStatus where
-  parseJSON = parseJsonParamValueEnumBounded "VxProcessInstStatus"
-
-instance PersistField VxProcessInstStatus where
-  toPersistValue = toPersistValue . toParamValue
-
-  fromPersistValue pv = do
-    t <- fromPersistValue pv
-    case parseEnumParamValueText t of
-      Nothing -> Left $ "Invalid VxProcessInstStatus: " <> t
-      Just s -> pure s
-
-instance PersistFieldSql VxProcessInstStatus where
-  sqlType _ = sqlType (Proxy :: Proxy Text)
--- }}}1
-
-
-axProcessInstStatusIsFinished :: VxProcessInstStatus -> Bool
-axProcessInstStatusIsFinished VxProcessInstNew        = False
-axProcessInstStatusIsFinished VxProcessInstRunning    = False
-axProcessInstStatusIsFinished VxProcessInstTerminated = True
-axProcessInstStatusIsFinished VxProcessInstCompleted  = True
-axProcessInstStatusIsFinished VxProcessInstCanceled   = True
-
-
-axProcessInstStatusListFinished :: [ VxProcessInstStatus ]
-axProcessInstStatusListFinished = filter axProcessInstStatusIsFinished [ minBound .. maxBound ]
 
 
 maxApiVxGetProcessInstBatchSize :: Int
@@ -151,11 +100,11 @@ maxApiVxGetProcessInstBatchSize = 20
 
 
 data VxProcessInstListResponse = VxProcessInstListResponse
-  { axProcessInstListNextToken :: Maybe Int
-  , axProcessInstListList      :: [ProcessInstanceId]
+  { vxProcessInstListNextToken :: Maybe Int
+  , vxProcessInstListList      :: [ProcessInstanceId]
   }
 
-$(deriveJSON (defaultOptions { fieldLabelModifier = camelTo2 '_' . drop 17 }) ''VxProcessInstListResponse)
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxProcessInstListResponse)
 
 
 -- | 获取审批实例ID列表, 分页版本
@@ -165,7 +114,7 @@ apiVxGetProcessInstanceIdList :: HttpCallMonad env m
                              -> Timestamp
                              -> Maybe Timestamp
                              -> Maybe (NonEmpty UserId)
-                             -> Maybe ( NonEmpty VxProcessInstStatus )
+                             -> Maybe ( NonEmpty ProcessInstStatus )
                              -> Maybe Int
                              -> Int
                              -> ApiVxRpcWithAtk m VxProcessInstListResponse
@@ -179,7 +128,7 @@ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_statu
         , ("endTime" .=) <$> m_end_time
         , ("userIds" .=) . map toParamValue <$> m_user_ids
         , ("statuses" .=) . map toParamValue <$> m_status_list
-        , ("nextToken" .=) <$> m_next_token
+        , Just $ "nextToken" .= fromMaybe 0 m_next_token
         , Just $ "maxResults" .= min maxApiVxGetProcessInstBatchSize batch_size
         ]
     )
@@ -192,38 +141,113 @@ apiVxSourceProcessInstId :: HttpCallMonad env m
                          -> Timestamp
                          -> Maybe Timestamp
                          -> Maybe (NonEmpty UserId)
-                         -> Maybe ( NonEmpty VxProcessInstStatus )
+                         -> Maybe ( NonEmpty ProcessInstStatus )
                          -> ApiVxRpcWithAtkSource m ProcessInstanceId
 apiVxSourceProcessInstId proc_code start_time m_end_time m_user_ids m_status_list = loop Nothing
   where size = maxApiVxGetProcessInstBatchSize
 
         loop m_next_token = do
           resp <- lift $ ExceptT $ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_status_list m_next_token size
-          mapM_ yield (axProcessInstListList resp)
-          mapM_ (loop . Just) (axProcessInstListNextToken resp)
+          mapM_ yield (vxProcessInstListList resp)
+          mapM_ (loop . Just) (vxProcessInstListNextToken resp)
 
 
-
-data VxProcessInstInfo = VxProcessInstInfo
-  { axProcessInstInfoTitle                  :: Text
-  , axProcessInstInfoCreateTime             :: LocalTime
-  , axProcessInstInfoFinishTime             :: Maybe LocalTime
-  , axProcessInstInfoOriginatorUserId       :: UserId
-  , axProcessInstInfoOriginatorDeptId       :: DeptId
-  , axProcessInstInfoStatus                 :: VxProcessInstStatus
-  , axProcessInstInfoApproverUserIds        :: [UserId]
-  , axProcessInstInfoCcUserIds              :: [UserId]
-  , axProcessInstInfoFormComponentKeyValues :: [FormComponentInput]
-  , axProcessInstInfoResult                 :: Maybe ProcessInstResult
-  , axProcessInstInfoBizId                  :: ProcessBizId
-  , axProcessInstInfoOpRecords              :: [ProcessOpRecord]
-  , axProcessInstInfoTasks                  :: [ProcessTaskInfo]
-  , axProcessInstInfoOriginatorDeptName     :: Text
-  , axProcessInstInfoBizAction              :: ProcessBizAction
-  , axProcessInstInfoAttachedProcessInstIds :: [ProcessInstanceId]
-  , axProcessInstInfoMainProcessInstId      :: Maybe ProcessInstanceId
+data VxProcessOpRecord = VxProcessOpRecord
+  { vxProcessOpUserId    :: UserId
+  , vxProcessOpDate      :: UTCTime
+  , vxProcessOpType      :: ProcessOpType
+  , vxProcessOpResult    :: ProcessOpResult
+  , vxProcessOpRemark    :: Maybe Text
+  , vxProcessOpCcUserIds :: Maybe Text
+  -- TODO: 未实现字段
+  -- , vxProcessOpAttachments :: [ ?? ]
   }
 
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 11 }) ''VxProcessOpRecord)
+
+
+data VxProcessTaskInfo = VxProcessTaskInfo
+  { vxProcessTaskInfoTaskId            :: VxProcessTaskId
+  , vxProcessTaskInfoUserId            :: UserId
+  , vxProcessTaskInfoStatus            :: ProcessTaskStatus
+  , vxProcessTaskInfoResult            :: ProcessTaskResult
+  , vxProcessTaskInfoCreateTime        :: Maybe UTCTime
+  -- ^ 实测这有可能不出现．比如流程有两个环节时就会这样
+  , vxProcessTaskInfoFinishTime        :: Maybe UTCTime
+
+  -- 这两个 url 看上去是一样的
+  -- 而且其实不是完整url，只是一段 query string
+  -- 如下例
+  -- ?procInsId=31991348-cfd8-4a3b-aa29-0e28fbe01c97&taskId=66748124356&businessId=202012232101000537487
+  , vxProcessTaskInfoMobileUrl         :: Text
+  , vxProcessTaskInfoPcUrl             :: Text
+
+  -- 文档说有，但实测并没有
+  -- , vxProcessTaskInfoProcessInstanceId :: ProcessInstanceId
+
+  , vxProcessTaskInfoActivityId        :: ProcessActivityId
+  }
+
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxProcessTaskInfo)
+
+
+-- | 旧版里时间是 LocalTime，现在变成 UTCTime
+data VxProcessInstInfo = VxProcessInstInfo
+  { vxProcessInstInfoTitle                      :: Text
+  , vxProcessInstInfoCreateTime                 :: UTCTime
+  , vxProcessInstInfoFinishTime                 :: Maybe UTCTime
+  , vxProcessInstInfoOriginatorUserId           :: UserId
+  , vxProcessInstInfoOriginatorDeptId           :: DeptId
+  , vxProcessInstInfoStatus                     :: ProcessInstStatus
+  , vxProcessInstInfoApproverUserIds            :: [UserId]
+  , vxProcessInstInfoCcUserIds                  :: [UserId]
+  , vxProcessInstInfoFormComponentValues        :: [FormComponentInput]
+  , vxProcessInstInfoResult                     :: Maybe ProcessInstResult
+  , vxProcessInstInfoBusinessId                 :: ProcessBizId
+  , vxProcessInstInfoOperationRecords           :: [VxProcessOpRecord]
+  , vxProcessInstInfoTasks                      :: [VxProcessTaskInfo]
+  , vxProcessInstInfoOriginatorDeptName         :: Text
+  , vxProcessInstInfoBizAction                  :: ProcessBizAction
+
+  -- 文档说有，但实测并没有
+  -- , vxProcessInstInfoMainProcessInstanceId      :: ProcessInstanceId
+
+  , vxProcessInstInfoAttachedProcessInstanceIds :: [ ProcessInstanceId ]
+  }
+
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxProcessInstInfo)
+
+
+-- | 审批通过的时间
+vxProcessInstInfoApprovedTime :: VxProcessInstInfo -> Maybe UTCTime
+vxProcessInstInfoApprovedTime inst_info = do
+  guard $ vxProcessInstInfoStatus inst_info == ProcessInstCompleted
+  guard $ vxProcessInstInfoResult inst_info == Just ProcessApproved
+  vxProcessInstInfoFinishTime inst_info
+
+
+-- | XXX: VxProcessInstInfo 居然没有 ProcessInstanceId 的字段，跟旧版接口类似问题
+-- 但task有个 url 字段，包含形如 ?procInsId=XXXX&taskId=XXXX&businessId=XXX 的字串
+-- 可以从中提取 ProcessInstanceId
+vxProcessInstInfoId :: VxProcessInstInfo -> ProcessInstanceId
+vxProcessInstInfoId (VxProcessInstInfo {..}) =
+  fromMaybe (error $ "cannot get procInstId from url: " <> unpack url) $ do
+    s1 <- T.stripPrefix "?procInsId=" url
+    let (pid, others) = T.breakOn "&" s1
+    guard $ not $ null others
+    pure $ ProcessInstanceId pid
+  where task = fromMaybe (error "empty tasks in dingtalk process instance info") $ listToMaybe vxProcessInstInfoTasks
+        url = vxProcessTaskInfoMobileUrl task
+
+
 -- | 获取单个审批实例详情
+apiVxGetProcessInstanceInfo :: HttpCallMonad env m
+                            => ProcessInstanceId
+                            -> ApiVxRpcWithAtk m VxProcessInstInfo
+apiVxGetProcessInstanceInfo inst_id =
+  apiVxGetCallInResult "v1.0" "/workflow/processInstances"
+        [ "processInstanceId" &= inst_id
+        ]
+
 
 -- vim: set foldmethod=marker:
