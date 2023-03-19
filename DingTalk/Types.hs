@@ -268,6 +268,10 @@ timestampToPOSIXTime :: Timestamp -> POSIXTime
 timestampToPOSIXTime = (/ 1000) . fromIntegral . unTimestamp
 
 
+timestampFromUTCTime :: UTCTime -> Timestamp
+timestampFromUTCTime = timestampFromPOSIXTime . utcTimeToPOSIXSeconds
+
+
 showTimeStamp :: Timestamp -> String
 showTimeStamp ts = show (posixSecondsToUTCTime ept)
   where ept = timestampToPOSIXTime ts
