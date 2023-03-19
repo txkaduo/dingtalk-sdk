@@ -18,7 +18,6 @@ import           GHC.Stack (HasCallStack)
 import DingTalk.Types
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Contacts
-import DingTalk.OAPI.Process
 
 #if MIN_VERSION_classy_prelude(1, 5, 0)
 import Control.Concurrent (threadDelay)
@@ -73,22 +72,18 @@ rawTextToCorpIdOrSuiteKey t =
      else Right $ SuiteKey t
 
 
-logDingTalkError :: (HasCallStack, MonadLogger m) => m a -> Either OapiError a -> m a
--- {{{1
+logDingTalkError :: (HasCallStack, MonadLogger m, Show e) => m a -> Either e a -> m a
 logDingTalkError f err_or = do
   case err_or of
     Right x -> return x
     Left err -> do
         logDingTalkError_ err
         f
--- }}}1
 
 
-logDingTalkError_ :: (HasCallStack, MonadLogger m) => OapiError -> m ()
--- {{{1
+logDingTalkError_ :: (HasCallStack, MonadLogger m, Show e) => e -> m ()
 logDingTalkError_ err = do
   LCS.logError $ "DingTalk API error: " <> fromString (ushow err)
--- }}}1
 
 
 -- | 在某个部门下，递归查找指定用户名的信息
@@ -137,11 +132,6 @@ newMinimalIntervalThrottle = liftIO $ MinimalIntervalThrottle 0 <$> newMVar Noth
 overrideMinimalIntervalThrottle :: Float -> MinimalIntervalThrottle -> MinimalIntervalThrottle
 overrideMinimalIntervalThrottle new_interval (MinimalIntervalThrottle _ mvar) =
   MinimalIntervalThrottle new_interval mvar
-
-
-lookupProcessInstFormComponentInputValue :: ProcessInstInfo -> Text -> Maybe Text
-lookupProcessInstFormComponentInputValue pii name =
-  fmap formComponentInputValue $ find ((== name) . formComponentInputName) (processInstInfoFormComponentKeyValues pii)
 
 
 -- vim: set foldmethod=marker:

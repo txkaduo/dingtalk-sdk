@@ -158,12 +158,31 @@ data VxProcessOpRecord = VxProcessOpRecord
   , vxProcessOpType      :: ProcessOpType
   , vxProcessOpResult    :: ProcessOpResult
   , vxProcessOpRemark    :: Maybe Text
-  , vxProcessOpCcUserIds :: Maybe Text
+  , vxProcessOpCcUserIds :: Maybe [UserId]
   -- TODO: 未实现字段
   -- , vxProcessOpAttachments :: [ ?? ]
   }
 
 $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 11 }) ''VxProcessOpRecord)
+
+
+-- | 这个结构对应 formComponentValues
+-- 但文档里描述的很多字段都不必然出现. 这里只反映最本质需要的字段
+-- 测试用例 ProcessInstanceId:
+-- * 7-b_5LFhR82-z6S6ODl1bQ02641678867589
+-- * 8FQgcy7dR7iHyn13cZuhmw02641677843347
+-- * xy1bmw7rSA-yPAQYPD7fmg02641678688905
+data VxFormInput = VxFormInput
+  { vxFormInputId            :: Text
+  , vxFormInputName          :: Text
+  , vxFormInputComponentType :: Maybe Text
+
+  -- 有时只有 extValue，有时 extValue, value 都不出现，如 componentType=DDAttachment
+  , vxFormInputValue         :: Maybe Text
+  , vxFormInputExtValue      :: Maybe Value
+  }
+
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 11 }) ''VxFormInput)
 
 
 data VxProcessTaskInfo = VxProcessTaskInfo
@@ -191,6 +210,15 @@ data VxProcessTaskInfo = VxProcessTaskInfo
 $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxProcessTaskInfo)
 
 
+vxProcessInstInfoFormLookup :: Text -> VxProcessInstInfo -> Maybe VxFormInput
+vxProcessInstInfoFormLookup n =
+  find ((== n) . vxFormInputName) . vxProcessInstInfoFormComponentValues
+
+lookupVxProcessInstFormInputValue :: VxProcessInstInfo -> Text -> Maybe (Maybe Text)
+lookupVxProcessInstFormInputValue pii name =
+  fmap vxFormInputValue $ find ((== name) . vxFormInputName) (vxProcessInstInfoFormComponentValues pii)
+
+
 -- | 旧版里时间是 LocalTime，现在变成 UTCTime
 data VxProcessInstInfo = VxProcessInstInfo
   { vxProcessInstInfoTitle                      :: Text
@@ -199,9 +227,9 @@ data VxProcessInstInfo = VxProcessInstInfo
   , vxProcessInstInfoOriginatorUserId           :: UserId
   , vxProcessInstInfoOriginatorDeptId           :: DeptId
   , vxProcessInstInfoStatus                     :: ProcessInstStatus
-  , vxProcessInstInfoApproverUserIds            :: [UserId]
-  , vxProcessInstInfoCcUserIds                  :: [UserId]
-  , vxProcessInstInfoFormComponentValues        :: [FormComponentInput]
+  , vxProcessInstInfoApproverUserIds            :: Maybe [UserId]
+  , vxProcessInstInfoCcUserIds                  :: Maybe [UserId]
+  , vxProcessInstInfoFormComponentValues        :: [VxFormInput]
   , vxProcessInstInfoResult                     :: Maybe ProcessInstResult
   , vxProcessInstInfoBusinessId                 :: ProcessBizId
   , vxProcessInstInfoOperationRecords           :: [VxProcessOpRecord]
@@ -232,7 +260,8 @@ vxProcessInstInfoApprovedTime inst_info = do
 vxProcessInstInfoId :: VxProcessInstInfo -> ProcessInstanceId
 vxProcessInstInfoId (VxProcessInstInfo {..}) =
   fromMaybe (error $ "cannot get procInstId from url: " <> unpack url) $ do
-    s1 <- T.stripPrefix "?procInsId=" url
+    let url1 = T.dropWhile (/= '?') url
+    s1 <- T.stripPrefix "?procInsId=" url1
     let (pid, others) = T.breakOn "&" s1
     guard $ not $ null others
     pure $ ProcessInstanceId pid
@@ -248,6 +277,32 @@ apiVxGetProcessInstanceInfo inst_id =
   apiVxGetCallInResult "v1.0" "/workflow/processInstances"
         [ "processInstanceId" &= inst_id
         ]
+
+
+-- | 添加审批评论
+-- TODO: 支持文件附件
+apiVxProcessInstanceAddComment :: HttpCallMonad env m
+                               => ProcessInstanceId
+                               -> UserId
+                               -> Text
+                               -> [Text] -- ^ Photos URLs
+                               -> ApiVxRpcWithAtk m Bool
+apiVxProcessInstanceAddComment process_id user_id text photo_urls = do
+  apiVxPostCallInResult "v1.0" "/workflow/processInstances/comments"
+    []
+    request_jv
+    where
+      file_jv = do
+        guard $ not (null photo_urls)
+        pure $ object [ "photos" .= photo_urls
+                      ]
+
+      request_jv = object $ catMaybes
+          [ pure $ "processInstanceId" .= process_id
+          , pure $ "commentUserId" .= user_id
+          , pure $ "text" .= text
+          , ("file" .=) <$> file_jv
+          ]
 
 
 -- vim: set foldmethod=marker:

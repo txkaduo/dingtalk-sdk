@@ -9,7 +9,6 @@ module DingTalk.Types
 -- {{{1 imports
 import           ClassyPrelude
 import           Control.Monad.Logger
-import           Control.Monad.Fail
 import           Data.Aeson as A
 import           Data.Time.Clock.POSIX
 import           Data.Proxy
@@ -135,13 +134,18 @@ rootDeptId = DeptId 1
 
 
 
-data ProcessInstResult = ProcessApproved | ProcessDenied
+data ProcessInstResult = ProcessApproved
+                       | ProcessDenied
+                       | ProcessResultNone
+                       -- ^ 新版接口有时会返回一个空的字符串，似乎代表审批中止或撤消了
+                       -- 用这个值表达这情况
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- {{{1 instances
 instance ParamValue ProcessInstResult where
-  toParamValue ProcessApproved = "agree"
-  toParamValue ProcessDenied   = "refuse"
+  toParamValue ProcessApproved   = "agree"
+  toParamValue ProcessDenied     = "refuse"
+  toParamValue ProcessResultNone = ""
 
 instance ToJSON ProcessInstResult where
   toJSON = toJSON . toParamValue
@@ -398,47 +402,8 @@ instance FromJSON ProcessTaskResult where
 -- }}}1
 
 
-data FormComponentInput = FormComponentInput
-  { formComponentInputName     :: Text
-  , formComponentInputType     :: Maybe Text
-  -- ^ 似乎有了 ext_value 就没 component_type
-  , formComponentInputValue    :: Text
-  , formComponentInputExtValue :: Maybe Value
-  }
-
-instance FromJSON FormComponentInput where
-  parseJSON = withObject "FormComponentInput" $ \ o -> do
-                m_name <- o .:? "name"
-                typ <- o .:? "component_type"
-                case m_name of
-                  Nothing -> do
-                    if typ == Just "TextNote"
-                       then pure (FormComponentInput "" typ "" Nothing)
-                       else fail $ unpack $ "missing 'name' field, while type is '" <> tshow typ <> "'"
-
-                  Just name ->
-                    FormComponentInput name typ
-                      <$> o .: "value"
-                       <*> o .:? "ext_value"
-
-instance ToJSON FormComponentInput where
-  toJSON (FormComponentInput {..}) =
-    object $ catMaybes
-          [ pure $ "name" .= formComponentInputName
-          , ("component_type" .=) <$> formComponentInputType
-          , pure $ "value" .= formComponentInputValue
-          , ("ext_value" .=) <$> formComponentInputExtValue
-          ]
-
--- 明细类型的值实际返回的例子是这样的
-  {--
-   {
-        "value": "[{\"rowValue\":[{\"componentType\":\"NumberField\",\"label\":\"报销金额(元)\",\"value\":\"51\",\"key\":\"报销金额(元)\"},{\"componentType\":\"TextField\",\"label\":\"报销
-类别\",\"value\":\"活动经费\",\"key\":\"报销类别\"},{\"componentType\":\"TextareaField\",\"label\":\"费用明细\",\"value\":\"天河北音乐会，买8瓶王老吉跟三瓶小矿泉水。折后一共51元\",\"key\":\"费用明细\"},{\"componentType\":\"DDSelectField\",\"label\":\"所属校区\",\"extendValue\":{\"key\":\"option_JYTXA9UZ\"},\"value\":\"总部\",\"key\":\"DDSelectField-JLQOJD9L\"}]}]",
-        "name": "报销明细",
-        "ext_value": "{\"statValue\":[{\"id\":\"报销金额(元)\",\"label\":\"总报销金额(元)\",\"num\":\"51\",\"upper\":\"\"}],\"componentName\":\"TableField\"}"
-    }
-  -}
+-- 明细类型的值实际返回的json比较复杂，而且新旧版接口不同
+-- 但核心我们需要用的就是 label/value  两个字段
 -- 最外面仍然是 FormComponentInput 一样的结构
 -- value 包含了复合结构的字串序列化
 -- 我们分解其逻辑结构为下面若干个类型
@@ -446,19 +411,16 @@ data FormCompDetailsRow = FormCompDetailsRow
   { fcdRowLabel :: Text
   -- ^ 从上面的例子看 key, label 有时相同，但 label 应该总是给人看到的那个字串
   , fcdRowValue :: Text
-  , fcdRowType  :: Text -- NumberField, TextareaField, DDSelectField
   }
 
 instance FromJSON FormCompDetailsRow where
   parseJSON = withObject "FormCompDetailsRow" $ \ o -> do
     FormCompDetailsRow <$> o .: "label"
                        <*> o .: "value"
-                       <*> o .: "componentType"
 
 instance ToJSON FormCompDetailsRow where
   toJSON (FormCompDetailsRow {..}) = object [ "label" .= fcdRowLabel
                                             , "value" .= fcdRowValue
-                                            , "componentType" .= fcdRowType
                                             ]
 
 
@@ -522,8 +484,11 @@ processInstStatusIsFinished ProcessInstCanceled   = True
 processInstStatusIsFinished ProcessInstError      = True
 
 
+-- | 注意这里去掉了 ProcessInstError
 processInstStatusListFinished :: [ ProcessInstStatus ]
-processInstStatusListFinished = filter processInstStatusIsFinished [ minBound .. maxBound ]
+processInstStatusListFinished =
+  filter (/= ProcessInstError) $
+    filter processInstStatusIsFinished [ minBound .. maxBound ]
 
 
 

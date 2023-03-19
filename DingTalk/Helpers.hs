@@ -170,7 +170,7 @@ parseEnumParamValueText = flip lookup table
 
 parseJsonParamValueEnumBounded :: (ParamValue a, Enum a, Bounded a) => String -> A.Value -> A.Parser a
 parseJsonParamValueEnumBounded name = A.withText name $ \ t -> do
-  maybe (fail $ "unknown value string: " <> unpack t) return $ parseEnumParamValueText t
+  maybe (fail $ "unknown value string: " <> show t) return $ parseEnumParamValueText t
 
 
 -- | 生成随机字串: 字串使用base64相同的字符集

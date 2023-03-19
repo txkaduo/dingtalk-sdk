@@ -28,23 +28,20 @@ apiVxUrlBase :: (IsString s, Semigroup s) => s -> s
 apiVxUrlBase ver = "https://api.dingtalk.com/" <> ver
 
 
+-- | 新版接口错误报文内容
+-- 错误代码变成一个字符串
 data ApiVxError = ApiVxError
-  { apiVxErrorCode :: Text
-  , apiVxErrorMsg  :: Text
+  { apiVxErrorCode    :: Text
+  , apiVxErrorMessage :: Text
   }
 
--- {{{1 instances
+$(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 10 }) ''ApiVxError)
+
 instance Show ApiVxError where
   show (ApiVxError c m) =
     "ApiVxError { "
       <> intercalate ", " [ "code=" <> unpack c, "message=" <> ushow m ]
       <> " }"
-
-instance FromJSON ApiVxError where
-  parseJSON = withObject "ApiVxError" $ \ o ->
-    ApiVxError <$> o .: "code"
-               <*> o .: "message"
--- }}}1
 
 
 type ApiVxRpcWithAtk m a = ReaderT AccessToken m (Either ApiVxError a)

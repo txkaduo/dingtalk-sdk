@@ -14,7 +14,7 @@ module DingTalk.OAPI.Process
   , FormCompDetailsRow(..), FormCompDetailsX(..)
   , ProcessTaskInfo(..), ProcessInstInfo(..)
   , processInstInfoId, processInstInfoApprovedTime
-  , processInstInfoFormLookup
+  , processInstInfoFormLookup, lookupProcessInstFormComponentInputValue
   , oapiGetProcessInstanceInfo, oapiGetProcessInstanceInfo'
   , oapiGetUserProcessInstanceToDo
   , mkInternalUrlOfProcessInst
@@ -402,6 +402,39 @@ instance ToJSON ProcessTaskInfo where
 -- }}}1
 
 
+data FormComponentInput = FormComponentInput
+  { formComponentInputName     :: Text
+  , formComponentInputType     :: Maybe Text
+  -- ^ 似乎有了 ext_value 就没 component_type
+  , formComponentInputValue    :: Text
+  , formComponentInputExtValue :: Maybe Value
+  }
+
+instance FromJSON FormComponentInput where
+  parseJSON = withObject "FormComponentInput" $ \ o -> do
+                m_name <- o .:? "name"
+                typ <- o .:? "component_type"
+                case m_name of
+                  Nothing -> do
+                    if typ == Just "TextNote"
+                       then pure (FormComponentInput "" typ "" Nothing)
+                       else fail $ unpack $ "missing 'name' field, while type is '" <> tshow typ <> "'"
+
+                  Just name ->
+                    FormComponentInput name typ
+                       <$> o .: "value"
+                       <*> o .:? "ext_value"
+
+instance ToJSON FormComponentInput where
+  toJSON (FormComponentInput {..}) =
+    object $ catMaybes
+          [ pure $ "name" .= formComponentInputName
+          , ("component_type" .=) <$> formComponentInputType
+          , pure $ "value" .= formComponentInputValue
+          , ("ext_value" .=) <$> formComponentInputExtValue
+          ]
+
+
 data ProcessInstInfo = ProcessInstInfo
   { processInstInfoTitle                  :: Text
   , processInstInfoCreateTime             :: LocalTime
@@ -504,6 +537,11 @@ processInstInfoId (ProcessInstInfo {..}) =
 processInstInfoFormLookup :: Text -> ProcessInstInfo -> Maybe FormComponentInput
 processInstInfoFormLookup n =
   find ((== n) . formComponentInputName) . processInstInfoFormComponentKeyValues
+
+
+lookupProcessInstFormComponentInputValue :: ProcessInstInfo -> Text -> Maybe Text
+lookupProcessInstFormComponentInputValue pii name =
+  fmap formComponentInputValue $ find ((== name) . formComponentInputName) (processInstInfoFormComponentKeyValues pii)
 
 
 -- | 获取单个审批实例

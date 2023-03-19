@@ -425,23 +425,33 @@ start opts api_env = flip runReaderT api_env $ do
       now <- liftIO getPOSIXTime
       let start_time = timestampFromPOSIXTime $ now - fromIntegral seconds
 
-      err_or_res <- flip runReaderT atk $ runExceptT $ runConduit $ do
-                      oapiSourceProcessInstId proc_code start_time Nothing (fmap pure m_user_id)
-                        .| CL.consume
+      proc_ids <-
+        if optApiVersion opts == 0
+           then do
+                (flip runReaderT atk $ runExceptT $ runConduit $ do
+                        oapiSourceProcessInstId proc_code start_time Nothing (fmap pure m_user_id)
+                                  .| CL.consume
+                  ) >>= api_from_right "oapiSourceProcessInstId"
+           else do
+                (flip runReaderT atk $ runExceptT $ runConduit $ do
+                        apiVxSourceProcessInstId proc_code start_time Nothing (fmap pure m_user_id) Nothing
+                                  .| CL.consume
+                  ) >>= api_from_right "oapiSourceProcessInstId"
 
-      case err_or_res of
-        Left err -> do
-          $logError $ "oapiSourceProcessListByUser failed: " <> utshow err
-
-        Right proc_ids -> do
-          forM_ proc_ids $ \ proc_id -> do
-            putStrLn $ unProcessInstanceId proc_id
+      forM_ proc_ids $ \ proc_id -> do
+        putStrLn $ unProcessInstanceId proc_id
 
 
     ShowProcessInst proc_inst_id -> do
       if optApiVersion opts == 0
-         then api_call_or_abort_then_print_json "oapiGetProcessInstanceInfo" (flip runReaderT atk $ oapiGetProcessInstanceInfo proc_inst_id)
-         else api_call_or_abort_then_print_json "apiVxGetProcessInstanceInfo" (flip runReaderT atk $ apiVxGetProcessInstanceInfo proc_inst_id)
+         then do
+              proc_info <- api_call_or_abort "oapiGetProcessInstanceInfo" (flip runReaderT atk $ oapiGetProcessInstanceInfo proc_inst_id)
+              putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
+              putStrLn $ "processInstInfoId=" <> toParamValue (processInstInfoId proc_info)
+         else do
+              proc_info <- api_call_or_abort "apiVxGetProcessInstanceInfo" (flip runReaderT atk $ apiVxGetProcessInstanceInfo proc_inst_id)
+              putStrLn $ toStrict $ decodeUtf8 $ AP.encodePretty proc_info
+              putStrLn $ "vxProcessInstInfoId=" <> toParamValue (vxProcessInstInfoId proc_info)
 
 
     ProcessInstAddComment proc_inst_id user_id text photo_urls -> do
