@@ -172,9 +172,11 @@ $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 11 }) ''Vx
 -- * 7-b_5LFhR82-z6S6ODl1bQ02641678867589
 -- * 8FQgcy7dR7iHyn13cZuhmw02641677843347
 -- * xy1bmw7rSA-yPAQYPD7fmg02641678688905
+-- * VWeGUx3ZRz-Q8RXgRpa9cw02641677834132
 data VxFormInput = VxFormInput
   { vxFormInputId            :: Text
-  , vxFormInputName          :: Text
+  , vxFormInputName          :: Maybe Text
+  -- ^ 似乎说明文字，无 'name' 字段
   , vxFormInputComponentType :: Maybe Text
 
   -- 有时只有 extValue，有时 extValue, value 都不出现，如 componentType=DDAttachment
@@ -212,11 +214,11 @@ $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''Vx
 
 vxProcessInstInfoFormLookup :: Text -> VxProcessInstInfo -> Maybe VxFormInput
 vxProcessInstInfoFormLookup n =
-  find ((== n) . vxFormInputName) . vxProcessInstInfoFormComponentValues
+  find ((== Just n) . vxFormInputName) . vxProcessInstInfoFormComponentValues
 
 lookupVxProcessInstFormInputValue :: VxProcessInstInfo -> Text -> Maybe (Maybe Text)
 lookupVxProcessInstFormInputValue pii name =
-  fmap vxFormInputValue $ find ((== name) . vxFormInputName) (vxProcessInstInfoFormComponentValues pii)
+  fmap vxFormInputValue $ find ((== Just name) . vxFormInputName) (vxProcessInstInfoFormComponentValues pii)
 
 
 -- | 旧版里时间是 LocalTime，现在变成 UTCTime
