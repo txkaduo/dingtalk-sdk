@@ -95,8 +95,14 @@ apiVxSourceProcessListByUser delay_sec m_user_id = loop Nothing
 
 
 
-maxApiVxGetProcessInstBatchSize :: Int
-maxApiVxGetProcessInstBatchSize = 20
+-- | apiVxGetProcessInstanceIdList 一次最多取多长的时间区间
+maxApiVxGetProcessInstIdListTimeSpanSeconds :: Num a => a
+maxApiVxGetProcessInstIdListTimeSpanSeconds = 60 * 60 * 24 * 120
+
+
+-- | apiVxGetProcessInstanceIdList 一次最多取多少个结果
+maxApiVxGetProcessInstIdListBatchSize :: Int
+maxApiVxGetProcessInstIdListBatchSize = 20
 
 
 data VxProcessInstListResponse = VxProcessInstListResponse
@@ -129,7 +135,7 @@ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_statu
         , ("userIds" .=) . map toParamValue <$> m_user_ids
         , ("statuses" .=) . map toParamValue <$> m_status_list
         , Just $ "nextToken" .= fromMaybe 0 m_next_token
-        , Just $ "maxResults" .= min maxApiVxGetProcessInstBatchSize batch_size
+        , Just $ "maxResults" .= min maxApiVxGetProcessInstIdListBatchSize batch_size
         ]
     )
 -- }}}1
@@ -144,7 +150,7 @@ apiVxSourceProcessInstId :: HttpCallMonad env m
                          -> Maybe ( NonEmpty ProcessInstStatus )
                          -> ApiVxRpcWithAtkSource m ProcessInstanceId
 apiVxSourceProcessInstId proc_code start_time m_end_time m_user_ids m_status_list = loop Nothing
-  where size = maxApiVxGetProcessInstBatchSize
+  where size = maxApiVxGetProcessInstIdListTimeSpanSeconds
 
         loop m_next_token = do
           resp <- lift $ ExceptT $ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_status_list m_next_token size
