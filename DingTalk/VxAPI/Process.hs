@@ -179,9 +179,11 @@ $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 11 }) ''Vx
 -- * 8FQgcy7dR7iHyn13cZuhmw02641677843347
 -- * xy1bmw7rSA-yPAQYPD7fmg02641678688905
 -- * VWeGUx3ZRz-Q8RXgRpa9cw02641677834132
+-- * a7ReYUt_TN-qdXZ8dpz6rw02641679230801
 data VxFormInput = VxFormInput
-  { vxFormInputId            :: Text
-  , vxFormInputName          :: Maybe Text
+  { vxFormInputName          :: Maybe Text
+  -- | 实测 id 字段不一定存在，也没什么用
+  -- , vxFormInputId            :: Text
   -- ^ 似乎说明文字，无 'name' 字段
   , vxFormInputComponentType :: Maybe Text
 
