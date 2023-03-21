@@ -10,7 +10,8 @@ import           Data.Conduit
 import           Data.List.NonEmpty   (NonEmpty(..))
 -- import           Data.Proxy
 import qualified Data.Text            as T
--- import           Data.Time
+import           Data.Time
+import           Data.Time.Clock.POSIX
 -- import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 
 import DingTalk.Types
@@ -141,21 +142,47 @@ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_statu
 -- }}}1
 
 
--- | 获取审批实例ID列表, conduit版本
-apiVxSourceProcessInstId :: HttpCallMonad env m
-                         => ProcessCode
-                         -> Timestamp
-                         -> Maybe Timestamp
-                         -> Maybe (NonEmpty UserId)
-                         -> Maybe ( NonEmpty ProcessInstStatus )
-                         -> ApiVxRpcWithAtkSource m ProcessInstanceId
-apiVxSourceProcessInstId proc_code start_time m_end_time m_user_ids m_status_list = loop Nothing
+-- | 获取审批实例ID列表, conduit版本，不检查时间跨度
+apiVxSourceProcessInstId' :: HttpCallMonad env m
+                          => ProcessCode
+                          -> Timestamp
+                          -> Maybe Timestamp
+                          -> Maybe (NonEmpty UserId)
+                          -> Maybe ( NonEmpty ProcessInstStatus )
+                          -> ApiVxRpcWithAtkSource m ProcessInstanceId
+apiVxSourceProcessInstId' proc_code start_time m_end_time m_user_ids m_status_list = loop Nothing
   where size = maxApiVxGetProcessInstIdListTimeSpanSeconds
 
         loop m_next_token = do
           resp <- lift $ ExceptT $ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_status_list m_next_token size
           mapM_ yield (vxProcessInstListList resp)
           mapM_ (loop . Just) (vxProcessInstListNextToken resp)
+
+
+-- | 获取审批实例ID列表, conduit版本，自动切分时间区间至指定大小
+apiVxSourceProcessInstId :: HttpCallMonad env m
+                          => DiffTime
+                          -- ^ 接口限制最大返回数量为 1,000,000 个审批实例ID，调用者要自行调整时间窗大小以保证总量不会超限制
+                          -> ProcessCode
+                          -> Timestamp
+                          -> Maybe Timestamp
+                          -> Maybe (NonEmpty UserId)
+                          -> Maybe ( NonEmpty ProcessInstStatus )
+                          -> ApiVxRpcWithAtkSource m ProcessInstanceId
+apiVxSourceProcessInstId max_time_span0 proc_code start_time0 m_end_time0 m_user_ids m_status_list = do
+  now <- liftIO $ timestampFromPOSIXTime <$> getPOSIXTime
+  go start_time0 (fromMaybe now m_end_time0)
+  where remote_call start_time end_time =
+          apiVxSourceProcessInstId' proc_code start_time (Just end_time) m_user_ids m_status_list
+
+        max_time_span = timestampFromPOSIXTime $ realToFrac $ min max_time_span0 maxApiVxGetProcessInstIdListTimeSpanSeconds
+
+        go start_time end_time = do
+          let next_start_time = start_time + max_time_span
+          if next_start_time > end_time
+             then remote_call start_time end_time
+             else remote_call start_time next_start_time >> go next_start_time end_time
+
 
 
 data VxProcessOpRecord = VxProcessOpRecord

@@ -434,9 +434,9 @@ start opts api_env = flip runReaderT api_env $ do
                   ) >>= api_from_right "oapiSourceProcessInstId"
            else do
                 (flip runReaderT atk $ runExceptT $ runConduit $ do
-                        apiVxSourceProcessInstId proc_code start_time Nothing (fmap pure m_user_id) Nothing
+                        apiVxSourceProcessInstId maxApiVxGetProcessInstIdListTimeSpanSeconds proc_code start_time Nothing (fmap pure m_user_id) Nothing
                                   .| CL.consume
-                  ) >>= api_from_right "oapiSourceProcessInstId"
+                  ) >>= api_from_right "apiVxSourceProcessInstId"
 
       forM_ proc_ids $ \ proc_id -> do
         putStrLn $ unProcessInstanceId proc_id
