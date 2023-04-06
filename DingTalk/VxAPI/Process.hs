@@ -101,8 +101,13 @@ maxApiVxGetProcessInstIdListTimeSpanSeconds :: Num a => a
 maxApiVxGetProcessInstIdListTimeSpanSeconds = 60 * 60 * 24 * 120
 
 
+-- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的秒数
+maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds :: Num a => a
+maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds = 60 * 60 * 24 * 365
+
+
 -- | apiVxGetProcessInstanceIdList 一次最多取多少个结果
-maxApiVxGetProcessInstIdListBatchSize :: Int
+maxApiVxGetProcessInstIdListBatchSize :: Num a => a
 maxApiVxGetProcessInstIdListBatchSize = 20
 
 
