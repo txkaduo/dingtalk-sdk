@@ -106,6 +106,11 @@ maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds :: Num a => a
 maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds = 60 * 60 * 24 * 365
 
 
+-- | apiVxGetProcessInstanceIdList 用户列表参数数量最的值
+maxApiVxGetProcessInstIdListMaxUserIds :: Num a => a
+maxApiVxGetProcessInstIdListMaxUserIds = 10
+
+
 -- | apiVxGetProcessInstanceIdList 一次最多取多少个结果
 maxApiVxGetProcessInstIdListBatchSize :: Num a => a
 maxApiVxGetProcessInstIdListBatchSize = 20
