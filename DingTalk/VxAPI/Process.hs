@@ -98,7 +98,10 @@ apiVxSourceProcessListByUser delay_sec m_user_id = loop Nothing
 
 -- | apiVxGetProcessInstanceIdList 一次最多取多长的时间区间
 maxApiVxGetProcessInstIdListTimeSpanSeconds :: Num a => a
-maxApiVxGetProcessInstIdListTimeSpanSeconds = 60 * 60 * 24 * 120
+maxApiVxGetProcessInstIdListTimeSpanSeconds = 60 * 60 * 24 * maxApiVxGetProcessInstIdListTimeSpanDays
+
+maxApiVxGetProcessInstIdListTimeSpanDays :: Num a => a
+maxApiVxGetProcessInstIdListTimeSpanDays = 120
 
 
 -- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的秒数
