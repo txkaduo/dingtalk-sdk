@@ -19,6 +19,7 @@ module DingTalk
   , module DingTalk.VxAPI.Basic
   , module DingTalk.VxAPI.ErrorCode
   , module DingTalk.VxAPI.Process
+  , HackFixZonedTime(..)
   ) where
 
 import DingTalk.Types
@@ -32,6 +33,7 @@ import DingTalk.OAPI.Message.Chat
 import DingTalk.JS
 import DingTalk.Yesod
 import DingTalk.Misc
+import DingTalk.Helpers (HackFixZonedTime(..))
 import DingTalk.OAPI.Message.CorpConversation
 import DingTalk.OAPI.Process
 import DingTalk.OAPI.Attendance

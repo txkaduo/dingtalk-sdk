@@ -20,6 +20,7 @@ import qualified Data.ByteString.Base64.URL as B64L
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.Char as Char
 import           Data.List            ((!!))
+import           Data.Time
 import qualified Data.Text            as T
 import           Network.Wreq hiding (Proxy)
 import           System.Random              (randomIO, randomRIO)
@@ -216,5 +217,24 @@ lowerFirst :: String -> String
 lowerFirst (x:xs) = Char.toLower x : xs
 lowerFirst []     = []
 
+
+-- | 发现至少部分接口返回的报文里时间字串的时区其实是错的
+-- 例如 2023-06-17T17:18:00Z 其实就是一个北京时间
+-- 由于不确定未来什么时候报文的这个bug会被修正，暂时使用一种 hacking 的方式避开
+-- 假定只要返回的字串只是时区标识写错了，所以解释得到零时区就认为是bug，修正为北京时区
+class HackFixZonedTime a where
+  hackFixZonedTime :: a -> a
+
+instance HackFixZonedTime ZonedTime where
+  hackFixZonedTime zt =
+    if timeZoneMinutes (zonedTimeZone zt) == 0
+       then zt { zonedTimeZone = hoursToTimeZone 8 }
+       else zt
+
+instance HackFixZonedTime a => HackFixZonedTime [a] where
+  hackFixZonedTime = map hackFixZonedTime
+
+instance HackFixZonedTime a => HackFixZonedTime (Maybe a) where
+  hackFixZonedTime = fmap hackFixZonedTime
 
 -- vim: set foldmethod=marker:

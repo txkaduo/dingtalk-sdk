@@ -53,7 +53,7 @@ data VxProcessInfoEx = VxProcessInfoEx
   , vxProcessInfoExNewProcess     :: Bool
   , vxProcessInfoExIconUrl        :: Text
   , vxProcessInfoExAttendanceType :: Int
-  , vxProcessInfoExGmtModified    :: UTCTime
+  , vxProcessInfoExGmtModified    :: ZonedTime
   }
 
 $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 15 }) ''VxProcessInfoEx)
@@ -200,7 +200,7 @@ apiVxSourceProcessInstId max_time_span0 proc_code start_time0 m_end_time0 m_user
 
 data VxProcessOpRecord = VxProcessOpRecord
   { vxProcessOpUserId    :: UserId
-  , vxProcessOpDate      :: UTCTime
+  , vxProcessOpDate      :: ZonedTime
   , vxProcessOpType      :: ProcessOpType
   , vxProcessOpResult    :: ProcessOpResult
   , vxProcessOpRemark    :: Maybe Text
@@ -210,6 +210,9 @@ data VxProcessOpRecord = VxProcessOpRecord
   }
 
 $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 11 }) ''VxProcessOpRecord)
+
+instance HackFixZonedTime VxProcessOpRecord where
+  hackFixZonedTime x = x { vxProcessOpDate = hackFixZonedTime (vxProcessOpDate x) }
 
 
 -- | 这个结构对应 formComponentValues
@@ -240,9 +243,9 @@ data VxProcessTaskInfo = VxProcessTaskInfo
   , vxProcessTaskInfoUserId            :: UserId
   , vxProcessTaskInfoStatus            :: ProcessTaskStatus
   , vxProcessTaskInfoResult            :: ProcessTaskResult
-  , vxProcessTaskInfoCreateTime        :: Maybe UTCTime
+  , vxProcessTaskInfoCreateTime        :: Maybe ZonedTime
   -- ^ 实测这有可能不出现．比如流程有两个环节时就会这样
-  , vxProcessTaskInfoFinishTime        :: Maybe UTCTime
+  , vxProcessTaskInfoFinishTime        :: Maybe ZonedTime
 
   -- 这两个 url 看上去是一样的
   -- 而且其实不是完整url，只是一段 query string
@@ -259,6 +262,11 @@ data VxProcessTaskInfo = VxProcessTaskInfo
 
 $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxProcessTaskInfo)
 
+instance HackFixZonedTime VxProcessTaskInfo where
+  hackFixZonedTime x = x { vxProcessTaskInfoCreateTime = hackFixZonedTime (vxProcessTaskInfoCreateTime x)
+                         , vxProcessTaskInfoFinishTime = hackFixZonedTime (vxProcessTaskInfoFinishTime x)
+                         }
+
 
 vxProcessInstInfoFormLookup :: Text -> VxProcessInstInfo -> Maybe VxFormInput
 vxProcessInstInfoFormLookup n =
@@ -269,11 +277,11 @@ lookupVxProcessInstFormInputValue pii name =
   fmap vxFormInputValue $ find ((== Just name) . vxFormInputName) (vxProcessInstInfoFormComponentValues pii)
 
 
--- | 旧版里时间是 LocalTime，现在变成 UTCTime
+-- | 旧版里时间是 LocalTime，现在变成 ZonedTime
 data VxProcessInstInfo = VxProcessInstInfo
   { vxProcessInstInfoTitle                      :: Text
-  , vxProcessInstInfoCreateTime                 :: UTCTime
-  , vxProcessInstInfoFinishTime                 :: Maybe UTCTime
+  , vxProcessInstInfoCreateTime                 :: ZonedTime
+  , vxProcessInstInfoFinishTime                 :: Maybe ZonedTime
   , vxProcessInstInfoOriginatorUserId           :: UserId
   , vxProcessInstInfoOriginatorDeptId           :: DeptId
   , vxProcessInstInfoStatus                     :: ProcessInstStatus
@@ -295,9 +303,13 @@ data VxProcessInstInfo = VxProcessInstInfo
 
 $(deriveJSON (defaultOptions { fieldLabelModifier = lowerFirst . drop 17 }) ''VxProcessInstInfo)
 
+instance HackFixZonedTime VxProcessInstInfo where
+  hackFixZonedTime x = x { vxProcessInstInfoCreateTime = hackFixZonedTime (vxProcessInstInfoCreateTime x)
+                         , vxProcessInstInfoFinishTime = hackFixZonedTime (vxProcessInstInfoFinishTime x)
+                         }
 
 -- | 审批通过的时间
-vxProcessInstInfoApprovedTime :: VxProcessInstInfo -> Maybe UTCTime
+vxProcessInstInfoApprovedTime :: VxProcessInstInfo -> Maybe ZonedTime
 vxProcessInstInfoApprovedTime inst_info = do
   guard $ vxProcessInstInfoStatus inst_info == ProcessInstCompleted
   guard $ vxProcessInstInfoResult inst_info == Just ProcessApproved
