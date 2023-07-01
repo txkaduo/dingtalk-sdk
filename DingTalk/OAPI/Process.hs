@@ -23,7 +23,7 @@ module DingTalk.OAPI.Process
 
 -- {{{1 imports
 import           ClassyPrelude
--- import           Control.Monad.Logger
+import           Control.Monad.Logger
 import           Control.Monad.Except hiding (mapM_, mapM)
 import           Data.Aeson           as A
 import           Data.Aeson.Text      as A
@@ -85,6 +85,11 @@ instance FromJSON ProcessListResponse where
 
 maxOapiGetProcessBatchSize :: Int
 maxOapiGetProcessBatchSize = 100
+
+-- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的秒数
+maxOapiGetProcessInstIdListTimeMinStartTimeSeconds :: Num a => a
+maxOapiGetProcessInstIdListTimeMinStartTimeSeconds = 60 * 60 * 24 * 365
+
 
 
 -- | 获取用户可见的审批模板
@@ -307,7 +312,16 @@ oapiGetProcessInstanceIdList :: HttpCallMonad env m
                              -> Int
                              -> OapiRpcWithAtk m ProcessInstListResponse
 -- {{{1
-oapiGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids offset batch_size =
+oapiGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids offset batch_size = do
+   -- 开始时间不能早于当前时间的 365 天之前
+   -- 而且不满足此条件时的错误信息是 code=invalidEndTime, message="获取审批实例ID列表，审批实例结束时间不能小于开始时间"
+   -- 有误导性
+  now <- liftIO getCurrentTime
+  let oldest_start_time = timestampFromUTCTime $ addUTCTime (negate maxOapiGetProcessInstIdListTimeMinStartTimeSeconds) now
+  when (start_time < oldest_start_time) $ do
+    $logErrorS logSourceName $ "start_time must be >= " <> tshow oldest_start_time
+    throwIO $ userError $ "DingTalk API: start_time is too old"
+
   oapiPostCallWithAtk "/topapi/processinstance/listids"
     []
     ( object $ catMaybes

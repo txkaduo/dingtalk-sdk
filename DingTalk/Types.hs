@@ -272,6 +272,11 @@ timestampFromUTCTime :: UTCTime -> Timestamp
 timestampFromUTCTime = timestampFromPOSIXTime . utcTimeToPOSIXSeconds
 
 
+timestampToUTCTime :: Timestamp -> UTCTime
+timestampToUTCTime = posixSecondsToUTCTime . timestampToPOSIXTime
+
+
+
 showTimeStamp :: Timestamp -> String
 showTimeStamp ts = show (posixSecondsToUTCTime ept)
   where ept = timestampToPOSIXTime ts

@@ -2,7 +2,7 @@ module DingTalk.VxAPI.Process where
 
 -- {{{1 imports
 import           ClassyPrelude
--- import           Control.Monad.Logger
+import           Control.Monad.Logger
 import           Control.Monad.Except hiding (mapM_, mapM)
 import           Data.Aeson           as A
 import           Data.Aeson.TH                 (deriveJSON)
@@ -103,10 +103,12 @@ maxApiVxGetProcessInstIdListTimeSpanSeconds = 60 * 60 * 24 * maxApiVxGetProcessI
 maxApiVxGetProcessInstIdListTimeSpanDays :: Num a => a
 maxApiVxGetProcessInstIdListTimeSpanDays = 120
 
-
 -- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的秒数
+maxApiVxGetProcessInstIdListTimeMinStartTimeDays :: Num a => a
+maxApiVxGetProcessInstIdListTimeMinStartTimeDays = 365
+
 maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds :: Num a => a
-maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds = 60 * 60 * 24 * 365
+maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds = 60 * 60 * 24 * maxApiVxGetProcessInstIdListTimeMinStartTimeDays
 
 
 -- | apiVxGetProcessInstanceIdList 用户列表参数数量最的值
@@ -139,7 +141,16 @@ apiVxGetProcessInstanceIdList :: HttpCallMonad env m
                              -> Int
                              -> ApiVxRpcWithAtk m VxProcessInstListResponse
 -- {{{1
-apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_status_list m_next_token batch_size =
+apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_status_list m_next_token batch_size = do
+   -- 开始时间不能早于当前时间的 365 天之前
+   -- 而且不满足此条件时的错误信息是 code=invalidEndTime, message="获取审批实例ID列表，审批实例结束时间不能小于开始时间"
+   -- 有误导性
+  now <- liftIO getCurrentTime
+  let oldest_start_time = timestampFromUTCTime $ addUTCTime (negate maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds) now
+  when (start_time < oldest_start_time) $ do
+    $logErrorS logSourceName $ "start_time must be >= " <> tshow oldest_start_time
+    throwIO $ userError $ "DingTalk API: start_time is too old"
+
   apiVxPostCallInResult "v1.0" "/workflow/processes/instanceIds/query"
     []
     ( object $ catMaybes
