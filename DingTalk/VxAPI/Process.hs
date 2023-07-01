@@ -190,7 +190,7 @@ apiVxSourceProcessInstId max_time_span0 proc_code start_time0 m_end_time0 m_user
 
         max_time_span = timestampFromPOSIXTime $ realToFrac $ min max_time_span0 maxApiVxGetProcessInstIdListTimeSpanSeconds
 
-        go start_time end_time = do
+        go start_time end_time = when (end_time > start_time) $ do
           let next_start_time = start_time + max_time_span
           if next_start_time > end_time
              then remote_call start_time end_time
