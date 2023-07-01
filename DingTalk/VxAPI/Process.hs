@@ -164,7 +164,7 @@ apiVxSourceProcessInstId' :: HttpCallMonad env m
                           -> Maybe ( NonEmpty ProcessInstStatus )
                           -> ApiVxRpcWithAtkSource m ProcessInstanceId
 apiVxSourceProcessInstId' proc_code start_time m_end_time m_user_ids m_status_list = loop Nothing
-  where size = maxApiVxGetProcessInstIdListTimeSpanSeconds
+  where size = maxApiVxGetProcessInstIdListBatchSize
 
         loop m_next_token = do
           resp <- lift $ ExceptT $ apiVxGetProcessInstanceIdList proc_code start_time m_end_time m_user_ids m_status_list m_next_token size
