@@ -103,10 +103,11 @@ maxApiVxGetProcessInstIdListTimeSpanSeconds = 60 * 60 * 24 * maxApiVxGetProcessI
 maxApiVxGetProcessInstIdListTimeSpanDays :: Num a => a
 maxApiVxGetProcessInstIdListTimeSpanDays = 120
 
--- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的秒数
+-- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的天数
 maxApiVxGetProcessInstIdListTimeMinStartTimeDays :: Num a => a
 maxApiVxGetProcessInstIdListTimeMinStartTimeDays = 365
 
+-- | apiVxGetProcessInstanceIdList 的 startTime 最早距离当前时间的秒数
 maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds :: Num a => a
 maxApiVxGetProcessInstIdListTimeMinStartTimeSeconds = 60 * 60 * 24 * maxApiVxGetProcessInstIdListTimeMinStartTimeDays
 
