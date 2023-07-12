@@ -8,6 +8,7 @@ import           Data.List.NonEmpty (NonEmpty)
 import           Network.HTTP.Types (renderSimpleQuery)
 
 import DingTalk.Types
+import DingTalk.Helpers
 -- }}}1
 
 
@@ -175,14 +176,12 @@ messageType (MessageActionCardMultiple {}) = MessageTypeActionCard
 -- | 这是真正在报文中收发的消息类型
 data SomeMessage = forall a. SomeMessage (Message a)
 
--- {{{1
 instance ToJSON SomeMessage where
   toJSON (SomeMessage m) =
     object [ "msgtype" .= mt
-           , mt .= m
+           , aesonKeyFromText mt .= m
            ]
     where mt = toParamValue $ messageType m
--- }}}1
 
 
 

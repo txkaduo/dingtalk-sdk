@@ -28,6 +28,7 @@ import           Control.Monad.Logger
 import           Data.Aeson as A
 import qualified Data.Aeson.Extra     as AE
 import           Data.List.NonEmpty (NonEmpty)
+import           Data.Kind (Type)
 import           Data.Proxy
 import           Data.Time.Clock.POSIX
 
@@ -40,7 +41,7 @@ import DingTalk.Helpers
 
 -- | XXX: 要手工保证每个实例类型都记录在 allKnownCallbackEvents 列表里
 class (FromJSON (CallbackData a)) => CallbackEvent a where
-  type CallbackData a :: *
+  type CallbackData a :: Type
   callbackTag :: a -> Text
 
 

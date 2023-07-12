@@ -13,6 +13,7 @@ import           Control.Monad.Logger
 import qualified Control.Monad.Logger.CallStack as LCS
 import           Data.Aeson.Lens      (key)
 import qualified Data.Aeson           as A
+import qualified Data.Aeson.Key       as A
 import qualified Data.Aeson.Text      as A
 import qualified Data.Aeson.Types     as A
 import qualified Data.Aeson.Encode.Pretty as AP
@@ -75,9 +76,30 @@ applyParamKvListInQs kv_list opts = foldl' f opts kv_list
   where f o (k, SomeParamValue v) = o & param k .~ [ toParamValue v ]
 
 
+#if MIN_VERSION_aeson(2, 0, 0)
+type AesonKey = A.Key
+#else
+type AesonKey = Text
+#endif
+
+aesonKeyToText :: AesonKey -> Text
+#if MIN_VERSION_aeson(2, 0, 0)
+aesonKeyToText = A.toText
+#else
+aesonKeyToText = id
+#endif
+
+aesonKeyFromText :: Text -> AesonKey
+#if MIN_VERSION_aeson(2, 0, 0)
+aesonKeyFromText = A.fromText
+#else
+aesonKeyFromText = id
+#endif
+
+
 getJsonField :: (MonadIO m, A.FromJSON a, MonadLogger m)
              => A.Value
-             -> Text
+             -> AesonKey
              -> m a
 -- {{{1
 getJsonField jv field = do
@@ -85,15 +107,15 @@ getJsonField jv field = do
   case mx of
     Just x -> return x
     Nothing -> do
-      $logErrorS logSourceName $ "field '" <> field <> "' does not exist in JSON: " <> jv_txt
-      liftIO $ throwIO $ DatagramError $ unpack $ "field '" <> field <> "' does not exist in JSON"
+      $logErrorS logSourceName $ "field '" <> aesonKeyToText field <> "' does not exist in JSON: " <> jv_txt
+      liftIO $ throwIO $ DatagramError $ unpack $ "field '" <> aesonKeyToText field <> "' does not exist in JSON"
   where jv_txt = toStrict (A.encodeToLazyText jv)
 -- }}}1
 
 
 getJsonFieldMay :: (MonadIO m, A.FromJSON a, MonadLogger m)
                 => A.Value
-                -> Text
+                -> AesonKey
                 -> m (Maybe a)
 -- {{{1
 getJsonFieldMay jv field = do
@@ -104,12 +126,12 @@ getJsonFieldMay jv field = do
       case A.fromJSON jv2 of
         A.Success x -> return x
         A.Error err -> do
-          $logErrorS logSourceName $ "failed to decode field '" <> field <> "' in JSON: "
+          $logErrorS logSourceName $ "failed to decode field '" <> aesonKeyToText field <> "' in JSON: "
                                       <> fromString err
                                       <> ". JSON was:\n" <> jv_txt
           liftIO $ throwIO $ DatagramError $ unpack $
                                   "failed to decode field '"
-                                  <> field <> "' in JSON: " <> fromString err
+                                  <> aesonKeyToText field <> "' in JSON: " <> fromString err
 
   where jv_txt = toStrict (A.encodeToLazyText jv)
 -- }}}1

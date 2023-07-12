@@ -8,6 +8,7 @@ import           Data.List.NonEmpty (NonEmpty(..))
 import           Data.Proxy
 
 import DingTalk.Types
+import DingTalk.Helpers
 import DingTalk.OAPI.Basic
 import DingTalk.OAPI.Message.Types
 -- }}}1
@@ -46,7 +47,7 @@ oapiChatSend chat_id (SomeMessage real_msg) =
   oapiPostCallWithAtk "/chat/send" []
     (object [ "chatid" .= chat_id
             , "msgtype" .= mt
-            , mt .= real_msg
+            , aesonKeyFromText mt .= real_msg
             ])
     >>= return . fmap (AE.getSingObject (Proxy :: Proxy "messageId"))
   where
