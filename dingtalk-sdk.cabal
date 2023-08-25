@@ -20,7 +20,7 @@ Flag library-only
     Default:       False
 
 library
-  hs-source-dirs:      .
+  hs-source-dirs:      src
   exposed-modules:     DingTalk.Types
                        DingTalk.Helpers
                        DingTalk.OAPI.Basic
