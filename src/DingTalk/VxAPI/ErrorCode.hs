@@ -17,3 +17,6 @@ apiVxEcForbiddenQpsLimitForAppkeyAndApi = "Forbidden.AccessDenied.QpsLimitForApp
 apiVxEcForbiddenQpmLimitForAppkeyAndApi :: IsString s => s
 apiVxEcForbiddenQpmLimitForAppkeyAndApi = "Forbidden.AccessDenied.QpmLimitForAppkeyAndApi"
 
+
+apiVxEcNotFound :: IsString s => s
+apiVxEcNotFound  = "dentryNotExist"

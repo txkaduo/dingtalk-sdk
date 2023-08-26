@@ -17,10 +17,6 @@ import           Data.Time.Clock.POSIX
 import DingTalk.Types
 import DingTalk.Helpers
 import DingTalk.VxAPI.Basic
-
-#if MIN_VERSION_classy_prelude(1, 5, 0)
-import Control.Concurrent (threadDelay)
-#endif
 -- }}}1
 
 
@@ -84,17 +80,13 @@ apiVxSourceProcessListByUser :: HttpCallMonad env m
                              => Float  -- ^ seconds. delay between iterations
                              -> Maybe UserId
                              -> ApiVxRpcWithAtkSource m VxProcessInfo
-apiVxSourceProcessListByUser delay_sec m_user_id = loop Nothing
-  where size = maxApiVxUserVisibleProcessBatchSize
-        delay_us = round $ delay_sec * 1000 * 1000
-        delay = liftIO $ threadDelay delay_us
-
-        loop m_next_token = do
-          resp <- lift $ ExceptT $ apiVxGetProcessListByUser m_user_id m_next_token size
-          mapM_ yield (vxUserVisibleProcessProcessList resp)
-          mapM_ (\ x -> delay >> loop (Just x)) (vxUserVisibleProcessNextToken resp)
-
-
+apiVxSourceProcessListByUser delay_sec m_user_id =
+  apiVxSourceByStep
+    vxUserVisibleProcessProcessList
+    vxUserVisibleProcessNextToken
+    delay_sec
+    (\ m_next_token -> apiVxGetProcessListByUser m_user_id m_next_token maxApiVxUserVisibleProcessBatchSize)
+  
 
 -- | apiVxGetProcessInstanceIdList 一次最多取多长的时间区间
 maxApiVxGetProcessInstIdListTimeSpanSeconds :: Num a => a

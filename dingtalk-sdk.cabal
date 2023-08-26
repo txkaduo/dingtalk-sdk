@@ -38,6 +38,7 @@ library
                        DingTalk.OAPI.ErrorCode
                        DingTalk.VxAPI.Basic
                        DingTalk.VxAPI.ErrorCode
+                       DingTalk.VxAPI.Drive
                        DingTalk.VxAPI.Process
                        DingTalk.JS
                        DingTalk.Yesod
@@ -45,6 +46,7 @@ library
                        DingTalk
 
   build-depends:       base >= 4.7 && < 5
+                     , template-haskell
                      , classy-prelude
                      , yesod-core
                      , wai
@@ -57,7 +59,7 @@ library
                      , shakespeare
                      , blaze-html
                      , persistent
-                     , wreq
+                     , wreq >= 0.5
                      , monad-logger
                      , transformers
                      , monad-control
@@ -81,6 +83,8 @@ library
                      , cryptonite
                      , clock
                      , lifted-base
+                     , filepath
+                     , data-default
                      , safe-money
                      , nonempty-containers
                      , http-api-data
@@ -111,6 +115,7 @@ library
                       DataKinds
                       TupleSections
                       RecordWildCards
+                      TypeApplications
 
   ghc-options:  -Wall -fwarn-tabs -fno-warn-partial-type-signatures -j
 
@@ -148,6 +153,7 @@ executable dingtalk-manage
                      , text
                      , containers
                      , yesod
+                     , data-default
                      , unicode-show
                      , nonempty-containers
 

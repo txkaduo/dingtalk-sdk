@@ -230,6 +230,9 @@ class HasDingTalkLoginApp a where
 data HttpApiRunEnv t = HttpApiRunEnv t WS.Session
   deriving (Functor)
 
+instance HasWreqSession (HttpApiRunEnv t) where
+  getWreqSession (HttpApiRunEnv _ x) = x
+
 type HttpApiRunEnv' = HttpApiRunEnv SomeRemoteCallThrottle
 
 type HttpCallBaseMonad m = ( MonadIO m, MonadLogger m, MonadBaseControl IO m )
@@ -499,6 +502,70 @@ processInstStatusListFinished =
   filter (/= ProcessInstError) $
     filter processInstStatusIsFinished [ minBound .. maxBound ]
 
+
+NEWTYPE_DEF_TEXT(DriveSpaceId, unDriveSpaceId)
+NEWTYPE_DEF_TEXT(DriveEntryId, unDriveEntryId)
+NEWTYPE_DEF_TEXT(DriveEntryUuid, unDriveEntryUuid)
+
+-- | 钉盘空间类型
+data DriveSpaceType = DriveSpaceTypeOrg
+                    | DriveSpaceTypePersonal
+                    deriving (Show, Eq, Ord, Enum, Bounded)
+
+instance ParamValue DriveSpaceType where
+  toParamValue DriveSpaceTypeOrg      = "org"
+  toParamValue DriveSpaceTypePersonal = "personal"
+
+$(deriveJSONAndPersistInstances ''DriveSpaceType)
+
+
+data DriveEntryType = DriveEntryTypeFile
+                    | DriveEntryTypeFolder
+                    deriving (Show, Eq, Ord, Enum, Bounded)
+
+instance ParamValue DriveEntryType where
+  toParamValue DriveEntryTypeFile  = "FILE"
+  toParamValue DriveEntryTypeFolder  = "FOLDER"
+
+$(deriveJSONAndPersistInstances ''DriveEntryType)
+
+
+data DriveEntryStatus = DriveEntryStatusNormal
+                      | DriveEntryStatusDeleted
+                      | DriveEntryStatusExpired
+                      deriving (Show, Eq, Ord, Enum, Bounded)
+
+instance ParamValue DriveEntryStatus where
+  toParamValue DriveEntryStatusNormal  = "NORMAL"
+  toParamValue DriveEntryStatusDeleted = "DELETED"
+  toParamValue DriveEntryStatusExpired = "EXPIRED"
+
+$(deriveJSONAndPersistInstances ''DriveEntryStatus)
+
+
+data DriveEntryOrderBy = DriveEntryOrderByModifiedTime
+                       | DriveEntryOrderByCreateTime
+                       | DriveEntryOrderByName
+                       | DriveEntryOrderBySize
+                      deriving (Show, Eq, Ord, Enum, Bounded)
+
+instance ParamValue DriveEntryOrderBy where
+  toParamValue DriveEntryOrderByModifiedTime = "MODIFIED_TIME"
+  toParamValue DriveEntryOrderByCreateTime   = "CREATE_TIME"
+  toParamValue DriveEntryOrderByName         = "NAME"
+  toParamValue DriveEntryOrderBySize         = "SIZE"
+
+$(deriveJSONAndPersistInstances ''DriveEntryOrderBy)
+
+data DriveEntryOrder = DriveEntryOrderAsc
+                     | DriveEntryOrderDesc
+                     deriving (Show, Eq, Ord, Enum, Bounded)
+
+instance ParamValue DriveEntryOrder where
+  toParamValue DriveEntryOrderAsc  = "ASC"
+  toParamValue DriveEntryOrderDesc = "DESC"
+
+$(deriveJSONAndPersistInstances ''DriveEntryOrder)
 
 
 -- vim: set foldmethod=marker:

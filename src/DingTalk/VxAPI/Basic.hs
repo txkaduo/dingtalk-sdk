@@ -263,4 +263,36 @@ apiVxGetAccessToken app_key app_secret =
   fmap vxAccessTokenRespAccessToken <$> apiVxGetAccessToken' app_key app_secret
 
 
+-- | 把分页获取的数据转换成 Conduit
+apiVxSourceByStep
+  :: HttpCallMonad env m
+  => (r -> [a])  -- ^ real data
+  -> (r -> Maybe t) -- ^ get next token
+  -> Float  -- ^ seconds. delay between iterations
+  -> (Maybe t -> ApiVxRpcWithAtk m r)
+  -> ApiVxRpcWithAtkSource m a
+apiVxSourceByStep get_list get_next_token delay_sec get_once = loop Nothing
+  where delay_us = round $ delay_sec * 1000 * 1000
+        delay = liftIO $ threadDelay delay_us
+
+        loop m_next_token = do
+          resp <- lift $ ExceptT $ get_once m_next_token
+          mapM_ yield (get_list resp)
+          mapM_ (\ x -> delay >> loop (Just x)) (get_next_token resp)
+
+
+apiVxNotFoundToMaybe :: Either ApiVxError a -> Either ApiVxError (Maybe a)
+apiVxNotFoundToMaybe (Right x)  = Right (Just x)
+apiVxNotFoundToMaybe (Left err) = if apiVxErrorCode err == apiVxEcNotFound
+                                    then Right Nothing
+                                    else Left err
+
+apiVxNotFoundToMaybeExcept :: Monad m => ExceptT ApiVxError m a -> ExceptT ApiVxError m (Maybe a)
+apiVxNotFoundToMaybeExcept =
+  flip catchError ( \ err ->
+    if apiVxErrorCode err == apiVxEcNotFound
+       then pure Nothing
+       else throwError err
+    ) . fmap Just
+
 -- vim: set foldmethod=marker:

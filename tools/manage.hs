@@ -14,13 +14,14 @@ import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Lazy as LB
 import           Data.Conduit
 import qualified Data.Conduit.List as CL
+import           Data.Default (def)
 import           Data.List.NonEmpty (some1, NonEmpty)
 import qualified Data.Text as T
 import           Data.Time
 import           Data.Time.Clock.POSIX
 import           Data.Tree
 import           Network.HTTP.Client   (streamFile)
-import           Network.Wreq         (responseBody, responseHeader)
+import           Network.Wreq         (responseBody, responseHeader, responseStatus, statusCode)
 import qualified Network.Wreq.Session  as WS
 import           Options.Applicative
 import           System.IO             (hPutStrLn)
@@ -92,6 +93,11 @@ data ManageCmd = Scopes
                | PunchDetails Day Day (NonEmpty UserId)
                | VisibleReportTemplates (Maybe UserId)
                | QueryReports TimestampSpec TimestampSpec (Maybe UserId) (Maybe Text)
+               | ListDriveSpaces UnionId DriveSpaceType
+               | ListDriveEntries UnionId DriveSpaceId DriveEntryId
+               | GetDriveEntry UnionId DriveSpaceId DriveEntryId
+               | GetDriveEntryByPath UnionId DriveSpaceId FilePath
+               | DownloadDriveEntryDownload UnionId DriveSpaceId DriveEntryId
                deriving (Show)
 
 data Options = Options
@@ -244,6 +250,44 @@ manageCmdParser = subparser $
             (progDesc "取得日志")
       )
 
+  <> command "list-drive-spaces"
+      (info (helper <*> (pure ListDriveSpaces <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
+                                           <*> (argument (enumStringReader "space type") (metavar "SPACE_TYPE"))
+                        ))
+            (progDesc "列出钉盘空间")
+      )
+  <> command "list-drive-entries"
+      (info (helper <*> (pure ListDriveEntries
+                                <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
+                                <*> fmap DriveSpaceId (argument str (metavar "SPACE_ID"))
+                                <*> fmap DriveEntryId (argument str (metavar "PARENT_ENTRY_ID"))
+                        ))
+            (progDesc "列出钉盘目录下的文件和文件夹")
+      )
+  <> command "get-drive-entry"
+      (info (helper <*> (pure GetDriveEntry
+                                <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
+                                <*> fmap DriveSpaceId (argument str (metavar "SPACE_ID"))
+                                <*> fmap DriveEntryId (argument str (metavar "ENTRY_ID"))
+                        ))
+            (progDesc "取钉盘空间文件或文件夹的信息")
+      )
+  <> command "get-drive-entry-by-path"
+      (info (helper <*> (pure GetDriveEntryByPath
+                                <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
+                                <*> fmap DriveSpaceId (argument str (metavar "SPACE_ID"))
+                                <*> argument str (metavar "PATH")
+                        ))
+            (progDesc "取钉盘空间文件或文件夹的信息")
+      )
+  <> command "download-drive-entry"
+      (info (helper <*> (pure DownloadDriveEntryDownload
+                                <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
+                                <*> fmap DriveSpaceId (argument str (metavar "SPACE_ID"))
+                                <*> fmap DriveEntryId (argument str (metavar "ENTRY_ID"))
+                        ))
+            (progDesc "下载钉盘空间文件")
+      )
 -- }}}1
 
 
@@ -541,6 +585,61 @@ start opts api_env = flip runReaderT api_env $ do
         Left err -> $logError $ "Some API failed: " <> utshow err
         Right results -> do
           mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
+
+    ListDriveSpaces union_id space_type -> do
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ runConduit $ apiVxSourceDriveSpaces 0.1 union_id space_type .| CL.consume
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
+
+    ListDriveEntries union_id space_id parent_id -> do
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ runConduit $ apiVxSourceDriveEntriesUnder 0.1 union_id space_id parent_id def .| CL.consume
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
+
+    GetDriveEntry union_id space_id entry_id -> do
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ apiVxGetDriveEntryMaybe union_id space_id entry_id
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right result -> do
+          ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) result
+
+    GetDriveEntryByPath union_id space_id path -> do
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ apiVxGetDriveEntryByPath union_id space_id path
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right result -> do
+          ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) result
+
+    DownloadDriveEntryDownload union_id space_id entry_id -> do
+      err_or_res <- flip runReaderT atk $ runExceptT $ do
+        apiVxFetchDriveEntry union_id space_id entry_id
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+
+        Right (Left err) -> do
+          $logError $ "apiVxFetchDriveEntry failed: " <> err
+
+        Right (Right resp) -> do
+          case resp ^. responseStatus . statusCode of
+            200 -> do
+              let lbs = resp ^. responseBody
+              $logInfo $ "Response body length: " <> utshow (length lbs)
+            code -> do
+              $logError $ "Response status code: " <> utshow code
+
   where
     corp_id = optAppKey opts
     corp_secret = optAppSecret opts

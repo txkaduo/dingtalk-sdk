@@ -12,6 +12,7 @@ import           Control.Lens         hiding ((.=))
 import           Control.Monad.Logger
 import qualified Control.Monad.Logger.CallStack as LCS
 import           Data.Aeson.Lens      (key)
+import           Data.Aeson           (FromJSON(..), ToJSON(..))
 import qualified Data.Aeson           as A
 import qualified Data.Aeson.Key       as A
 import qualified Data.Aeson.Text      as A
@@ -20,12 +21,15 @@ import qualified Data.Aeson.Encode.Pretty as AP
 import qualified Data.ByteString.Base64.URL as B64L
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.Char as Char
+import           Data.Proxy
 import           Data.List            ((!!))
 import           Data.Time
 import qualified Data.Text            as T
+import           Database.Persist.Sql  (PersistField (..), PersistFieldSql (..))
 import           Network.Wreq hiding (Proxy)
 import           System.Random              (randomIO, randomRIO)
 
+import           Language.Haskell.TH
 import           GHC.Stack (HasCallStack)
 -- }}}1
 
@@ -258,5 +262,43 @@ instance HackFixZonedTime a => HackFixZonedTime [a] where
 
 instance HackFixZonedTime a => HackFixZonedTime (Maybe a) where
   hackFixZonedTime = fmap hackFixZonedTime
+
+
+deriveJSONAndPersistInstances :: Name -> Q [Dec]
+deriveJSONAndPersistInstances name = do
+    let typeName = conT name
+    let typeNameStr = litE (stringL (nameBase name))
+
+    -- ToJSON instance
+    toJSONInstance <- [d|
+        instance ToJSON $(typeName) where
+            toJSON = toJSON . toParamValue
+      |]
+
+    -- FromJSON instance
+    fromJSONInstance <- [d|
+        instance FromJSON $(typeName) where
+            parseJSON = parseJsonParamValueEnumBounded $(typeNameStr)
+      |]
+
+    -- PersistField instance
+    persistFieldInstance <- [d|
+        instance PersistField $(typeName) where
+            toPersistValue = toPersistValue . toParamValue
+            fromPersistValue pv = do
+                t <- fromPersistValue pv
+                case parseEnumParamValueText t of
+                  Nothing -> Left $ "Invalid " <> fromString $(typeNameStr) <> ": " <> t
+                  Just s -> pure s
+      |]
+
+    -- PersistFieldSql instance
+    persistFieldSqlInstance <- [d|
+        instance PersistFieldSql $(typeName) where
+            sqlType _ = sqlType (Proxy :: Proxy Text)
+      |]
+
+    return $ concat [toJSONInstance, fromJSONInstance, persistFieldInstance, persistFieldSqlInstance]
+
 
 -- vim: set foldmethod=marker:

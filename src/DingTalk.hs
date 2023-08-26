@@ -18,6 +18,7 @@ module DingTalk
   , module DingTalk.OAPI.ErrorCode
   , module DingTalk.VxAPI.Basic
   , module DingTalk.VxAPI.ErrorCode
+  , module DingTalk.VxAPI.Drive
   , module DingTalk.VxAPI.Process
   , HackFixZonedTime(..)
   ) where
@@ -42,4 +43,5 @@ import DingTalk.OAPI.Callback
 import DingTalk.OAPI.ErrorCode
 import DingTalk.VxAPI.Basic
 import DingTalk.VxAPI.ErrorCode
+import DingTalk.VxAPI.Drive
 import DingTalk.VxAPI.Process
