@@ -170,6 +170,28 @@ apiVxSourceDriveEntriesUnder delay_sec union_id space_id parent_id list_opts =
     (\ m_next_token -> apiVxGetDriveEntriesUnder union_id space_id parent_id list_opts m_next_token 50)
 
 
+apiVxSourceDriveEntriesUnderPath
+  :: HttpCallMonad env m
+  => Float  -- ^ seconds. delay between iterations
+  -> UnionId
+  -> DriveSpaceId
+  -> FilePath
+  -> VxGetDriveEntriesOpts
+  -> ApiVxRpcWithAtkSourceT
+        (ExceptT
+          (DriveEntryId, FilePath)  -- 最后成功的节点，及其之下想找但找不到的节点
+        )
+        m
+        DriveEntryInfo
+apiVxSourceDriveEntriesUnderPath delay_sec union_id space_id parent_path list_opts = do
+  parent_dentry_id <-
+    if parent_path == "/"
+       then pure driveRootEntryId
+       else lift $ fmap driveEntryInfoId $ ExceptT $ apiVxGetDriveEntryByPath union_id space_id parent_path
+
+  transPipe lift $ apiVxSourceDriveEntriesUnder delay_sec union_id space_id parent_dentry_id list_opts
+
+
 driveRootEntryId :: DriveEntryId
 driveRootEntryId = DriveEntryId "0"
 
@@ -207,6 +229,7 @@ apiVxGetDriveEntryMaybe union_id space_id entry_id =
 -- 返回:
 -- * Left _: 搜索到这个节点不能继续了，有两种可能：这个节点是文件，另一种是下一级节点不存在（或权限不够）
 -- * Right _: 成功
+-- XXX:若路径是 / ，钉钉接口会出错，怀疑是钉钉的bug
 apiVxGetDriveEntryByPath
   :: forall env m. HttpCallMonad env m
   => UnionId
@@ -233,6 +256,7 @@ apiVxGetDriveEntryByPath union_id space_id path = runExceptT $ do
           $logErrorS logSourceName $ "not an absolute path: " <> fromString path
           throwError (driveRootEntryId, LNE.head path_pieces1)
   where
+    -- XXX: 这个调用会出错，而且没有有效的报错信息
     get_root = lift $ ExceptT $ apiVxGetDriveEntry union_id space_id driveRootEntryId
 
     get_by_path_pieces path_pieces = do

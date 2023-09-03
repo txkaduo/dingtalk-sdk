@@ -95,6 +95,7 @@ data ManageCmd = Scopes
                | QueryReports TimestampSpec TimestampSpec (Maybe UserId) (Maybe Text)
                | ListDriveSpaces UnionId DriveSpaceType
                | ListDriveEntries UnionId DriveSpaceId DriveEntryId
+               | ListDriveEntriesByPath UnionId DriveSpaceId FilePath
                | GetDriveEntry UnionId DriveSpaceId DriveEntryId
                | GetDriveEntryByPath UnionId DriveSpaceId FilePath
                | DownloadDriveEntryDownload UnionId DriveSpaceId DriveEntryId
@@ -261,6 +262,15 @@ manageCmdParser = subparser $
                                 <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
                                 <*> fmap DriveSpaceId (argument str (metavar "SPACE_ID"))
                                 <*> fmap DriveEntryId (argument str (metavar "PARENT_ENTRY_ID"))
+                        ))
+            (progDesc "列出钉盘目录下的文件和文件夹")
+      )
+
+  <> command "list-drive-entries-by-path"
+      (info (helper <*> (pure ListDriveEntriesByPath
+                                <*> fmap UnionId (argument str (metavar "USER_UNION_ID"))
+                                <*> fmap DriveSpaceId (argument str (metavar "SPACE_ID"))
+                                <*> argument str (metavar "PATH")
                         ))
             (progDesc "列出钉盘目录下的文件和文件夹")
       )
@@ -602,6 +612,16 @@ start opts api_env = flip runReaderT api_env $ do
       case err_or_res of
         Left err -> $logError $ "Some API failed: " <> utshow err
         Right results -> do
+          mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
+
+    ListDriveEntriesByPath union_id space_id path -> do
+      err_or_res <- flip runReaderT atk $ do
+        runExceptT $ runExceptT $ runConduit $ apiVxSourceDriveEntriesUnderPath 0.1 union_id space_id path def .| CL.consume
+
+      case err_or_res of
+        Left err -> $logError $ "Some API failed: " <> utshow err
+        Right (Left (stop_entry, stop_path) ) -> $logError $ "Not found: " <> fromString stop_path
+        Right (Right results) -> do
           mapM_ ( putStrLn . toStrict . decodeUtf8 . AP.encodePretty ) results
 
     GetDriveEntry union_id space_id entry_id -> do

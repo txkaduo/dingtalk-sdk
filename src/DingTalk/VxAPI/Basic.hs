@@ -56,6 +56,14 @@ type ApiVxRpcWithAtkSource m a =
 #endif
    () a (ExceptT ApiVxError (ReaderT AccessToken m)) ()
 
+type ApiVxRpcWithAtkSourceT t m a =
+#if MIN_VERSION_conduit(1, 3, 0)
+  ConduitT
+#else
+  ConduitM
+#endif
+   () a (t (ExceptT ApiVxError (ReaderT AccessToken m))) ()
+
 
 data ApiVxErrorOrPayload a = ApiVxErrorOrPayload { unApiVxErrorOrPayload :: Either ApiVxError a }
 
