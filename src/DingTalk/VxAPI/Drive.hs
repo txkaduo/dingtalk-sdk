@@ -352,8 +352,10 @@ apiVxFetchDriveEntryByDownloadInfo download_info = runExceptT $ do
                   \ (k, v) -> Endo $ header (fromString $ unpack k) .~ [ encodeUtf8 v ]
 
           let check_response request resp0 = do
-                start_bs <- liftIO $ resp0 ^. responseBody
-                throwIO $ HttpExceptionRequest request (StatusCodeException (fmap (const ()) resp0) start_bs)
+                let status_code = resp0 ^. responseStatus . statusCode
+                unless (status_code == 200) $ do
+                  start_bs <- liftIO $ resp0 ^. responseBody
+                  throwIO $ HttpExceptionRequest request (StatusCodeException (fmap (const ()) resp0) start_bs)
 
           let opts = defaults & add_headers
                               & checkResponse .~ Just check_response
