@@ -15,7 +15,7 @@ import qualified Data.Conduit.List as CL
 import           Data.Monoid (Endo(..))
 import           Data.Time
 import           Data.Default (Default(..))
-import           System.FilePath
+import           System.FilePath.Posix
 import           Data.Proxy
 import           Data.List (dropWhileEnd)
 import qualified Data.List.NonEmpty as LNE
@@ -226,10 +226,10 @@ apiVxGetDriveEntryMaybe union_id space_id entry_id =
 
 
 -- | 根据路径获取节点信息
+-- CAUTION: 为找到节点的 dentryid，需逐级从权目录找父目录的 dentryid , 但有可能某级节点的父目录用户无权限访问
 -- 返回:
 -- * Left _: 搜索到这个节点不能继续了，有两种可能：这个节点是文件，另一种是下一级节点不存在（或权限不够）
 -- * Right _: 成功
--- XXX:若路径是 / ，钉钉接口会出错，怀疑是钉钉的bug
 apiVxGetDriveEntryByPath
   :: forall env m. HttpCallMonad env m
   => UnionId
@@ -279,6 +279,74 @@ apiVxGetDriveEntryByPath union_id space_id path = runExceptT $ do
 
     loop_delay = 0.01
 -- }}}1
+
+
+-- | 根据路径获取节点信息
+-- 与 apiVxGetDriveEntryByPath 不同的是，调用者可以提供一些额外的手段来读取上级目录的信息
+-- 返回的报错信息仅是文字描述
+apiVxGetDriveEntryByPath'
+  :: forall env m. HttpCallMonad env m
+  => (DriveSpaceId -> FilePath -> ApiVxRpcWithAtkExcept m (Maybe (DriveEntryId, DriveEntryType)))
+  -- ^ 某一目录的节点信息: 无法提供时返回 Nothing
+  -> (DriveSpaceId -> DriveEntryInfo -> ApiVxRpcWithAtkExcept m ())
+  -- ^ 保存某一目录的节点信息
+  -> UnionId
+  -> DriveSpaceId
+  -> FilePath
+  -> ApiVxRpcWithAtkExcept m (Either Text DriveEntryInfo)
+-- {{{1
+apiVxGetDriveEntryByPath' get_cached_info save_dentry_info union_id space_id path' = runExceptT $ do
+  (dir_entry_id, entry_type) <-
+    lift (get_cached_info space_id dir_name)
+      >>= flip maybe pure
+            ( if dir_name == "/"
+                 then pure (driveRootEntryId, DriveEntryTypeFolder)
+                 else do
+                      info <- ExceptT $ apiVxGetDriveEntryByPath' get_cached_info save_dentry_info union_id space_id dir_name
+                      lift $ save_dentry_info space_id info
+
+                      pure $ (driveEntryInfoId &&& driveEntryInfoType) info
+            )
+
+  unless (entry_type == DriveEntryTypeFolder) $ do
+    throwError $ "Not a folder: " <> fromString dir_name
+
+  entries <- lift $ runConduit $ apiVxSourceDriveEntriesUnder loop_delay union_id space_id dir_entry_id def .| CL.consume
+  lift $ mapM_ (save_dentry_info space_id) entries
+
+  case find ((== fromString base_name) . driveEntryInfoName) entries of
+    Just entry -> pure entry
+    Nothing -> throwError $ "Not found: " <> fromString base_name
+
+  where
+    path = normalise path'
+    (dir_name', base_name) = splitFileName path
+    dir_name = fromMaybe dir_name' $ stripSuffix "/" dir_name'
+    loop_delay = 0.01
+-- }}}1
+
+
+-- | 类似于 apiVxGetDriveEntryByPath，但只返回 dentryid 之类最核心信息
+-- 因此可以先主动调用调用者提供的 get_cached_info
+apiVxGetDriveEntryCoreInfoByPath'
+  :: forall env m. HttpCallMonad env m
+  => (DriveSpaceId -> FilePath -> ApiVxRpcWithAtkExcept m (Maybe (DriveEntryId, (DriveEntryType, DriveEntryId))))
+  -- ^ 某一目录的节点信息: 无法提供时返回 Nothing
+  -> (DriveSpaceId -> DriveEntryInfo -> ApiVxRpcWithAtkExcept m ())
+  -- ^ 保存某一目录的节点信息
+  -> UnionId
+  -> DriveSpaceId
+  -> FilePath
+  -> ApiVxRpcWithAtkExcept m (Either Text (DriveEntryId, (DriveEntryType, DriveEntryId)))
+-- {{{1
+apiVxGetDriveEntryCoreInfoByPath' get_cached_info save_dentry_info union_id space_id path' = runExceptT $ do
+  lift (get_cached_info space_id path)
+    >>= flip maybe pure
+            (fmap (driveEntryInfoId &&& (driveEntryInfoType &&& driveEntryInfoParentId)) $
+              ExceptT $ apiVxGetDriveEntryByPath' get_cached_info2 save_dentry_info union_id space_id path)
+  where
+    path = normalise path'
+    get_cached_info2 = (fmap (fmap (second fst)) .) . get_cached_info
 
 
 data HeaderSignatureInfo = HeaderSignatureInfo
