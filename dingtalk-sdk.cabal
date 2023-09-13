@@ -64,6 +64,7 @@ library
                      , transformers
                      , monad-control
                      , mtl
+                     , unliftio
                      , lens
                      , lens-aeson
                      , bytestring

@@ -2,7 +2,7 @@ module DingTalk.Misc where
 
 -- {{{1 imports
 import           ClassyPrelude hiding (bracket)
-import           Control.Exception.Lifted (bracket)
+import           UnliftIO.Exception (bracket)
 import           Control.Monad.Trans.Except
 import           Control.Monad.Logger
 import qualified Control.Monad.Logger.CallStack as LCS
